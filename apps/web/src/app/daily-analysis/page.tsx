@@ -1,13 +1,11 @@
 'use client'
 
-import {useCallback, useState} from 'react'
+import {useCallback, useState, useEffect} from 'react'
 import {
   TrendingUp,
   TrendingDown,
   Activity,
   Crosshair,
-  Search,
-  Loader2,
   AlertCircle
 } from 'lucide-react'
 import type {DailyAnalysisResult, DailyAnalysisItem} from '@nexttrade/shared'
@@ -101,7 +99,7 @@ function RankTable({
           </tr>
         </thead>
         <tbody>
-          {items.slice(0, 10).map((item, i) => (
+          {items.slice(0, 20).map((item, i) => (
             <tr
               key={item.symbol}
               className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
@@ -145,32 +143,51 @@ function RankTable({
 }
 
 // ─── 主页面 ───
+const MIN_VOLUME = 20_000_000 // 固定 2000 万 USDT
+
 export default function DailyAnalysisPage() {
   const [date, setDate] = useState(yesterdayUTC())
-  const [minVolume, setMinVolume] = useState(1_000_000)
   const [data, setData] = useState<DailyAnalysisResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('amplitude')
 
-  const fetchAnalysis = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const base =
-        window.location.hostname === 'localhost' ? 'http://localhost:3001' : ''
-      const res = await fetch(
-        `${base}/api/daily-analysis?date=${date}&minQuoteVolume=${minVolume}`
-      )
-      const json = await res.json()
-      if (!json.success) throw new Error(json.error ?? 'Request failed')
-      setData(json.data as DailyAnalysisResult)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }, [date, minVolume])
+  const fetchAnalysis = useCallback(
+    async (signal: AbortSignal, isRetry = false) => {
+      setLoading(true)
+      if (!isRetry) setError(null)
+      try {
+        const base =
+          window.location.hostname === 'localhost'
+            ? 'http://localhost:3001'
+            : ''
+        const res = await fetch(
+          `${base}/api/daily-analysis?date=${date}&minQuoteVolume=${MIN_VOLUME}`,
+          {signal}
+        )
+        const json = await res.json()
+        if (!json.success) throw new Error(json.error ?? 'Request failed')
+        if (!json.data && !isRetry) {
+          // 无数据则重试一次（触发服务端重新抓取）
+          return fetchAnalysis(signal, true)
+        }
+        setData(json.data as DailyAnalysisResult)
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return
+        setError((e as Error).message)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [date]
+  )
+
+  // 页面加载或日期变化时自动查询，离开页面自动取消
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchAnalysis(controller.signal)
+    return () => controller.abort()
+  }, [fetchAnalysis])
 
   // 当前 Tab 数据
   const currentItems: DailyAnalysisItem[] = (() => {
@@ -192,62 +209,29 @@ export default function DailyAnalysisPage() {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
       {/* ─── 控制面板 ─── */}
-      <div className="bg-[#18181b] rounded-xl border border-gray-800 p-5 mb-6">
-        <div className="flex flex-wrap items-end gap-6">
-          {/* 日期选择 */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">
-              日期 (UTC)
-            </label>
+      <div className="bg-[#18181b] rounded-xl border border-gray-800 p-4 sm:p-5 mb-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">日期</span>
             <input
               type="date"
               value={date}
               max={yesterdayUTC()}
               onChange={e => setDate(e.target.value)}
-              className="bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200
-                           focus:outline-none focus:border-blue-500 transition-colors
-                           [color-scheme:dark]"
+              className="bg-[#0a0a0b] border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-200
+                         focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark] w-36"
             />
           </div>
-
-          {/* 成交额阈值滑块 */}
-          <div className="flex-1 min-w-[200px] flex flex-col gap-1.5">
-            <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">
-              最低成交额:{' '}
-              <span className="text-blue-400 font-mono">
-                ${fmtVolume(minVolume)}
-              </span>
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={50_000_000}
-              step={500_000}
-              value={minVolume}
-              onChange={e => setMinVolume(Number(e.target.value))}
-              className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer
-                           accent-blue-500"
-            />
-            <div className="flex justify-between text-xs text-gray-600">
-              <span>$0</span>
-              <span>$50M</span>
-            </div>
-          </div>
-
-          {/* 查询按钮 */}
-          <button
-            onClick={fetchAnalysis}
-            disabled={loading}
-            className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800
-                         text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Search className="w-4 h-4" />
-            )}
-            {loading ? '查询中...' : '查询分析'}
-          </button>
+          <span className="text-xs text-muted-foreground">
+            Binance USDT 永续
+          </span>
+          <span className="text-xs text-muted-foreground">流动性 ≥ $20M</span>
+          {loading && (
+            <span className="flex items-center gap-1.5 text-xs text-primary ml-auto">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+              加载中
+            </span>
+          )}
         </div>
       </div>
 
@@ -320,9 +304,9 @@ export default function DailyAnalysisPage() {
       {!data && !loading && !error && (
         <div className="text-center py-24 text-gray-500">
           <Activity className="w-12 h-12 mx-auto mb-4 opacity-30" />
-          <p className="text-lg mb-1">选择日期后点击「查询分析」</p>
+          <p className="text-lg mb-1">选择日期自动加载</p>
           <p className="text-sm">
-            系统将抓取 Binance USDT 永续合约市场数据并计算排行
+            切换日期将自动拉取 Binance USDT 永续合约数据并计算排行
           </p>
         </div>
       )}

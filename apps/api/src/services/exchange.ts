@@ -1,34 +1,41 @@
-import ccxt, { Exchange } from 'ccxt';
-import { config } from '../config.js';
-import type { ExchangeId, Ticker } from '@nexttrade/shared';
+import ccxt, {Exchange} from 'ccxt'
+import {config} from '../config.js'
+import type {ExchangeId, Ticker} from '@nexttrade/shared'
 
-const exchanges = new Map<string, Exchange>();
+const exchanges = new Map<string, Exchange>()
+
+// ─── 代理配置（国内访问交易所必需）───
+const proxyOptions = config.HTTPS_PROXY
+  ? {httpProxy: config.HTTPS_PROXY, httpsProxy: config.HTTPS_PROXY}
+  : {}
 
 function getExchange(id: ExchangeId): Exchange {
-  const key = `${id}-default`;
-  if (exchanges.has(key)) return exchanges.get(key)!;
+  const key = `${id}-default`
+  if (exchanges.has(key)) return exchanges.get(key)!
 
-  let exchange: Exchange;
+  let exchange: Exchange
   switch (id) {
     case 'binance':
       exchange = new ccxt.binance({
         apiKey: config.BINANCE_API_KEY,
         secret: config.BINANCE_SECRET,
-      });
-      break;
+        ...proxyOptions
+      })
+      break
     case 'okx':
       exchange = new ccxt.okx({
         apiKey: config.OKX_API_KEY,
         secret: config.OKX_SECRET,
         password: config.OKX_PASSPHRASE,
-      });
-      break;
+        ...proxyOptions
+      })
+      break
     default:
-      throw new Error(`Unsupported exchange: ${id}`);
+      throw new Error(`Unsupported exchange: ${id}`)
   }
 
-  exchanges.set(key, exchange);
-  return exchange;
+  exchanges.set(key, exchange)
+  return exchange
 }
 
 export async function fetchTicker(exchangeId: ExchangeId, symbol: string): Promise<Ticker> {

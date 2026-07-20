@@ -20,11 +20,13 @@
     "@wagmi/core": "^2.16.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.0",
+    "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.460.0",
     "next": "^16.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.0",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.0",
     "viem": "^2.22.0",
     "wagmi": "^2.14.0"

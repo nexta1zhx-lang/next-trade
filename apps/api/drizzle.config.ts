@@ -1,10 +1,17 @@
-import { defineConfig } from 'drizzle-kit';
+import {defineConfig} from 'drizzle-kit'
 
 export default defineConfig({
-  schema: './src/db/schema.ts',
+  schema: [
+    './src/db/schema.ts',
+    './src/db/schema/volatility.ts',
+    './src/db/schema/watchlist.ts',
+    './src/db/schema/trade.ts'
+  ],
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgres://localhost:5432/nexttrade',
-  },
-});
+    url:
+      process.env.DATABASE_URL ||
+      'postgres://nexttrade:nexttrade@localhost:5432/nexttrade'
+  }
+})
