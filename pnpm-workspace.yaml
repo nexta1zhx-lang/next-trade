@@ -1,0 +1,10 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+allowBuilds:
+  bufferutil: true
+  ccxt: true
+  esbuild: true
+  keccak: true
+  sharp: true
+  utf-8-validate: true
