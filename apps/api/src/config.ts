@@ -1,4 +1,11 @@
-import { z } from 'zod';
+import {config as dotenv} from 'dotenv'
+import {resolve} from 'path'
+import {fileURLToPath} from 'url'
+
+// 在模块加载时优先加载 .env，确保所有 import 都能读到环境变量
+dotenv({path: resolve(fileURLToPath(new URL('.', import.meta.url)), '../.env')})
+
+import {z} from 'zod'
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
@@ -11,7 +18,8 @@ const envSchema = z.object({
   OKX_SECRET: z.string().optional(),
   OKX_PASSPHRASE: z.string().optional(),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
-});
+  HTTPS_PROXY: z.string().optional() // 国内环境代理，如 http://127.0.0.1:7890
+})
 
-export const config = envSchema.parse(process.env);
-export type Config = z.infer<typeof envSchema>;
+export const config = envSchema.parse(process.env)
+export type Config = z.infer<typeof envSchema>

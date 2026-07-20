@@ -37,3 +37,6 @@ nextTrade/
 ├── pnpm-workspace.yaml
 └── package.json
 ```
+
+docker compose up postgres redis
+pnpm run dev
