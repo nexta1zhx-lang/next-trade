@@ -13,6 +13,8 @@ import {streamRouter} from './routes/stream.js'
 import {configRouter} from './routes/config.js'
 import {authRouter} from './routes/auth.js'
 import {tradeAuditRouter} from './routes/trade-audit.js'
+import {positionRouter} from './routes/position.js'
+import {positionHistoryRouter} from './routes/position-history.js'
 import {authMiddleware} from './middleware/auth.js'
 import cron from 'node-cron'
 import {runDailySync} from './cron/index.js'
@@ -51,6 +53,14 @@ app.route('/api/auth', authRouter)
 // ─── 交易审计路由（需要登录） ───
 app.use('/api/trade-audit/*', authMiddleware)
 app.route('/api/trade-audit', tradeAuditRouter)
+
+// ─── 仓位查询路由（需要登录 + API 限流） ───
+app.use('/api/v1/positions', authMiddleware)
+app.route('/api/v1/positions', positionRouter)
+
+// ─── 仓位历史路由（需要登录 + API 限流） ───
+app.use('/api/v1/position-history', authMiddleware)
+app.route('/api/v1/position-history', positionHistoryRouter)
 // ─── 启动 ───
 async function main() {
   // 连接 Redis
@@ -77,17 +87,16 @@ async function main() {
     console.log(`✓ API running on http://localhost:${info.port}`)
   )
 
-  // 优雅退出
-  process.on('SIGTERM', () => {
+  // 优雅退出（带强制兜底，确保 tsx watch 能正常重启）
+  function shutdown() {
     wsManager.stop()
-    redis.disconnect()
-    process.exit(0)
-  })
-  process.on('SIGINT', () => {
-    wsManager.stop()
-    redis.disconnect()
-    process.exit(0)
-  })
+    try {
+      redis.disconnect()
+    } catch {}
+    setTimeout(() => process.exit(0), 2000)
+  }
+  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', shutdown)
 }
 
 main()

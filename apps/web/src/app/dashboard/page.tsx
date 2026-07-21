@@ -1,13 +1,7 @@
 'use client'
 
 import {useCallback, useEffect, useState} from 'react'
-import {
-  Volume2,
-  VolumeX,
-  Bell,
-  Play,
-  AlertTriangle
-} from 'lucide-react'
+import {Volume2, VolumeX, Bell, Play, AlertTriangle} from 'lucide-react'
 import {Toaster, toast} from 'sonner'
 import {ChartCard} from '@/components/ChartCard'
 import {useAlertStream, useLatestAlerts} from '@/hooks/useAlertStream'
@@ -37,32 +31,45 @@ export default function DashboardPage() {
   const {isMuted, toggleMute, playTest, unlock} = useAudioAlert(lastAlert)
 
   // 按日期加载 + 自动同步
-  const loadForDate = useCallback(async (targetDate: string, isRetry = false) => {
-    setLoading(true)
-    try {
-      const res = await fetch(`${API_BASE}/api/market/watchlist?date=${targetDate}`)
-      const json = await res.json()
-      if (json.success && json.data?.items?.length > 0) {
-        setItems(json.data.items)
-      } else if (!isRetry) {
-        // 无数据 → 自动触发同步，完成后重试
-        await fetch(`${API_BASE}/api/market/watchlist/sync?date=${targetDate}`)
-        await loadForDate(targetDate, true)
+  const loadForDate = useCallback(
+    async (targetDate: string, isRetry = false) => {
+      setLoading(true)
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/market/watchlist?date=${targetDate}`
+        )
+        const json = await res.json()
+        if (json.success && json.data?.items?.length > 0) {
+          setItems(json.data.items)
+        } else if (!isRetry) {
+          // 无数据 → 自动触发同步，完成后重试
+          await fetch(
+            `${API_BASE}/api/market/watchlist/sync?date=${targetDate}`
+          )
+          await loadForDate(targetDate, true)
+        }
+      } catch (err) {
+        console.error('[dashboard] Error:', err)
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      console.error('[dashboard] Error:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+    },
+    []
+  )
 
   // 日期变化或首次加载
   useEffect(() => {
-    const h = () => { unlock(); document.removeEventListener('click', h) }
+    const h = () => {
+      unlock()
+      document.removeEventListener('click', h)
+    }
     document.addEventListener('click', h)
     loadForDate(date)
     const timer = setInterval(() => loadForDate(date), 30_000)
-    return () => { clearInterval(timer); document.removeEventListener('click', h) }
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('click', h)
+    }
   }, [date, loadForDate, unlock])
 
   // 告警 Toast
@@ -121,7 +128,9 @@ export default function DashboardPage() {
                          focus:outline-none focus:border-primary transition-colors [color-scheme:dark] w-32"
             />
             {loading && (
-              <span className="text-xs text-muted-foreground animate-pulse">加载中</span>
+              <span className="text-xs text-muted-foreground animate-pulse">
+                加载中
+              </span>
             )}
             <button
               onClick={playTest}

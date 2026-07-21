@@ -120,11 +120,12 @@ export const api = {
     exchange: string,
     apiKey: string,
     apiSecret: string,
-    isTestnet = false
+    isTestnet = false,
+    label = ''
   ) {
     return fetchApi<StoredApiKey>('/trade-audit/keys', {
       method: 'POST',
-      body: JSON.stringify({exchange, apiKey, apiSecret, isTestnet})
+      body: JSON.stringify({exchange, apiKey, apiSecret, isTestnet, label})
     })
   },
 
@@ -146,10 +147,38 @@ export const api = {
   }) {
     return fetchApi<TradeAuditResult & {candles: any[]; markers: any[]}>(
       '/trade-audit/analyze',
-      {
-        method: 'POST',
-        body: JSON.stringify(params)
-      }
+      {method: 'POST', body: JSON.stringify(params)}
+    )
+  },
+
+  // ─── 按需 K 线（展开交易时调用） ───
+  getTradeCandles(params: {
+    keyId: number
+    symbol: string
+    entryPrice: number
+    side: 'buy' | 'sell'
+    openedAt: number
+    closedAt: number
+  }) {
+    return fetchApi<{candles: any[]; markers: any[]; mae: number; mfe: number}>(
+      '/trade-audit/candles',
+      {method: 'POST', body: JSON.stringify(params)}
+    )
+  },
+
+  // ─── 仓位历史（bapi position/history） ───
+  getPositionHistory(params: {
+    keyId: number
+    symbol?: string
+    startDate?: string
+    endDate?: string
+  }) {
+    const qs = new URLSearchParams({keyId: String(params.keyId)})
+    if (params.symbol) qs.set('symbol', params.symbol)
+    if (params.startDate) qs.set('startDate', params.startDate)
+    if (params.endDate) qs.set('endDate', params.endDate)
+    return fetchApi<{records: any[]; count: number}>(
+      `/v1/position-history?${qs}`
     )
   },
 

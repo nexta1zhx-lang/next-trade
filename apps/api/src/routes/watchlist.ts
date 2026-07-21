@@ -7,11 +7,17 @@ import {runDailyWatchlistSync} from '../cron/dailySync.js'
 const router = new Hono()
 
 const querySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
 })
 
 const syncSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
 })
 
 /**

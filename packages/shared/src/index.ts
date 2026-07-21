@@ -230,8 +230,9 @@ export interface TradeReviewSave {
 // ─── API Key 管理 ───
 export interface StoredApiKey {
   id: number
-  exchange: string
-  apiKey: string // masked: "binance***abc"
+  label: string // 用户自定义名称，如 "主账户"、"子账户1"
+  exchange: string // "binance" | "okx" | "bybit"
+  apiKey: string // masked: "bin****f456"
   isTestnet: boolean
   createdAt: string
 }

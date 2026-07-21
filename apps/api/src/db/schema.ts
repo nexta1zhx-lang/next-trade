@@ -25,7 +25,8 @@ export const exchangeKeys = pgTable('exchange_keys', {
   userId: integer('user_id')
     .references(() => users.id)
     .notNull(),
-  exchange: varchar('exchange', {length: 20}).notNull(), // binance | okx
+  label: varchar('label', {length: 50}).default(''), // 用户自定义名称
+  exchange: varchar('exchange', {length: 20}).notNull(), // binance | okx | bybit
   apiKey: text('api_key').notNull(),
   apiSecret: text('api_secret').notNull(),
   passphrase: text('passphrase'), // OKX 需要

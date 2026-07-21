@@ -54,7 +54,7 @@ function calcVwap(candles: VwapInput[]): number {
 export async function runOperatorEngine(
   items: SqueezeCandidate[],
   ohlcvMap: Map<string, VwapInput[]>,
-  recordDate?: string,
+  recordDate?: string
 ): Promise<WatchlistItem[]> {
   const today = recordDate ?? new Date().toISOString().slice(0, 10)
   const results: WatchlistItem[] = []
@@ -147,7 +147,10 @@ export async function runOperatorEngine(
       await redis.hset(key, hashData)
       await redis.expire(key, CACHE_TTL)
     } catch (e) {
-      console.error('[operatorEngine] Redis write failed:', (e as Error).message)
+      console.error(
+        '[operatorEngine] Redis write failed:',
+        (e as Error).message
+      )
     }
   }
 

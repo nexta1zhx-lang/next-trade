@@ -21,7 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   {label: '实时看板', href: '/dashboard', icon: Monitor},
   {label: '每日行情', href: '/daily-analysis', icon: BarChart3},
   {label: '合约实盘', href: '/futures', icon: TrendingUp},
-  {label: '订单分析', href: '/orders', icon: ClipboardList},
+  {label: '仓位分析', href: '/orders', icon: ClipboardList},
   {label: '参数配置', href: '/settings', icon: Settings2}
 ]
 

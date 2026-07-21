@@ -5,10 +5,14 @@ import {db} from '../db/index.js'
 import {exchangeKeys} from '../db/schema.js'
 import {tradeReviews} from '../db/schema/trade.js'
 import {eq, and, desc} from 'drizzle-orm'
-import {runTradeAudit, validateReadOnlyKey} from '../services/binanceAudit.js'
+import {
+  validateCredentials,
+  syncAndGetTradeHistory,
+  getTradeCandles
+} from '../services/position.service.js'
+import type {ExchangeId} from '../types/position.js'
 import {encrypt, decrypt, maskApiKey} from '../services/crypto.js'
 import type {
-  TradeAuditRecord,
   TradeReview,
   TradeReviewSave,
   StoredApiKey
@@ -30,19 +34,28 @@ router.use('*', async (c, next) => {
 // ═════════════════════════════════════
 
 const storeKeySchema = z.object({
-  exchange: z.enum(['binance', 'okx']).default('binance'),
+  label: z.string().max(50).default(''),
+  exchange: z.enum(['binance', 'okx', 'bybit']).default('binance'),
   apiKey: z.string().min(1),
   apiSecret: z.string().min(1),
-  isTestnet: z.boolean().default(false)
+  isTestnet: z.boolean().default(false),
+  symbols: z.array(z.string()).optional()
 })
 
-// 存储 API Key
+// 存储 API Key（绑定后自动拉取最近一周订单）
 router.post('/keys', zValidator('json', storeKeySchema), async c => {
   const userId = (c as any).get('userId') as number
-  const {exchange, apiKey, apiSecret, isTestnet} = c.req.valid('json')
+  const {label, exchange, apiKey, apiSecret, isTestnet, symbols} =
+    c.req.valid('json')
 
-  // 先校验 Key 有效性
-  const validation = await validateReadOnlyKey(apiKey, apiSecret)
+  // 校验 Key 有效性（目前仅支持 Binance）
+  if (exchange !== 'binance') {
+    return c.json(
+      {success: false, error: `Exchange "${exchange}" is not yet supported`},
+      400
+    )
+  }
+  const validation = await validateCredentials('binance', {apiKey, apiSecret})
   if (!validation.valid) {
     return c.json(
       {success: false, error: validation.error || 'Invalid API key or secret'},
@@ -58,22 +71,71 @@ router.post('/keys', zValidator('json', storeKeySchema), async c => {
     .insert(exchangeKeys)
     .values({
       userId,
+      label,
       exchange,
       apiKey: encryptedKey,
       apiSecret: encryptedSecret,
       isTestnet: isTestnet ? 1 : 0
     })
-    .returning({id: exchangeKeys.id, createdAt: exchangeKeys.createdAt})
+    .returning({
+      id: exchangeKeys.id,
+      label: exchangeKeys.label,
+      createdAt: exchangeKeys.createdAt
+    })
 
   const result: StoredApiKey = {
     id: key.id,
+    label: key.label ?? '',
     exchange,
     apiKey: maskApiKey(apiKey),
     isTestnet,
     createdAt: key.createdAt.toISOString()
   }
 
-  return c.json({success: true, data: result}, 201)
+  // ─── 自动拉取最近一周订单 ───
+  const endDate = new Date().toISOString().slice(0, 10)
+  const startDate = new Date(Date.now() - 7 * 86400000)
+    .toISOString()
+    .slice(0, 10)
+  const targetSymbols = symbols?.length
+    ? symbols
+    : ['BTC/USDT:USDT', 'ETH/USDT:USDT']
+
+  const auditResults: any[] = []
+  for (const symbol of targetSymbols) {
+    try {
+      const audit = await syncAndGetTradeHistory(
+        userId,
+        'binance',
+        {apiKey, apiSecret},
+        {
+          symbol,
+          startDate,
+          endDate
+        }
+      )
+      if (audit.tradeCount > 0) {
+        auditResults.push({symbol, ...audit})
+      }
+    } catch {
+      // 单个 symbol 失败不影响其他
+    }
+  }
+
+  return c.json(
+    {
+      success: true,
+      data: {
+        key: result,
+        audit: {
+          startDate,
+          endDate,
+          results: auditResults
+        }
+      }
+    },
+    201
+  )
 })
 
 // 列出 API Key（解密后遮掩显示）
@@ -82,6 +144,7 @@ router.get('/keys', async c => {
   const keys = await db
     .select({
       id: exchangeKeys.id,
+      label: exchangeKeys.label,
       exchange: exchangeKeys.exchange,
       apiKey: exchangeKeys.apiKey,
       isTestnet: exchangeKeys.isTestnet,
@@ -96,11 +159,11 @@ router.get('/keys', async c => {
     try {
       displayKey = maskApiKey(decrypt(k.apiKey))
     } catch {
-      // 无法解密时显示加密片段
       displayKey = maskApiKey(k.apiKey)
     }
     return {
       id: k.id,
+      label: k.label ?? '',
       exchange: k.exchange,
       apiKey: displayKey,
       isTestnet: k.isTestnet === 1,
@@ -185,14 +248,12 @@ router.post('/analyze', zValidator('json', analyzeSchema), async c => {
   }
 
   try {
-    const result = await runTradeAudit({
-      apiKey: rawApiKey,
-      apiSecret: rawApiSecret,
-      symbol,
-      startDate,
-      endDate,
-      orderId
-    })
+    const result = await syncAndGetTradeHistory(
+      userId,
+      'binance',
+      {apiKey: rawApiKey, apiSecret: rawApiSecret},
+      {symbol, startDate, endDate, orderId}
+    )
 
     return c.json({
       success: true,
@@ -224,6 +285,52 @@ router.post('/analyze', zValidator('json', analyzeSchema), async c => {
     }
     return c.json({success: false, error: message}, 502)
   }
+})
+
+// ═════════════════════════════════════
+// 按需 K 线（前端展开交易时调用）
+// ═════════════════════════════════════
+
+const candlesSchema = z.object({
+  keyId: z.number().int().positive(),
+  symbol: z.string().min(1),
+  entryPrice: z.number(),
+  side: z.enum(['buy', 'sell']),
+  openedAt: z.number(),
+  closedAt: z.number()
+})
+
+router.post('/candles', zValidator('json', candlesSchema), async c => {
+  const userId = (c as any).get('userId') as number
+  const {keyId, symbol, entryPrice, side, openedAt, closedAt} =
+    c.req.valid('json')
+
+  const [stored] = await db
+    .select({apiKey: exchangeKeys.apiKey, apiSecret: exchangeKeys.apiSecret})
+    .from(exchangeKeys)
+    .where(and(eq(exchangeKeys.id, keyId), eq(exchangeKeys.userId, userId)))
+    .limit(1)
+
+  if (!stored) return c.json({success: false, error: 'Key not found'}, 404)
+
+  let rawKey: string, rawSecret: string
+  try {
+    rawKey = decrypt(stored.apiKey)
+    rawSecret = decrypt(stored.apiSecret)
+  } catch {
+    return c.json({success: false, error: 'Decrypt failed'}, 500)
+  }
+
+  const result = await getTradeCandles(
+    'binance',
+    {apiKey: rawKey, apiSecret: rawSecret},
+    symbol,
+    entryPrice,
+    side,
+    openedAt,
+    closedAt
+  )
+  return c.json({success: true, data: result})
 })
 
 // ═════════════════════════════════════

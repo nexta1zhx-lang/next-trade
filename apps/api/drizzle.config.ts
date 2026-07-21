@@ -5,7 +5,8 @@ export default defineConfig({
     './src/db/schema.ts',
     './src/db/schema/volatility.ts',
     './src/db/schema/watchlist.ts',
-    './src/db/schema/trade.ts'
+    './src/db/schema/trade.ts',
+    './src/db/schema/trade_history.ts'
   ],
   out: './drizzle',
   dialect: 'postgresql',
