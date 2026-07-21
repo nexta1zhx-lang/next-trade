@@ -28,6 +28,11 @@ function getKey(): Buffer {
  * @returns "hex(iv):hex(authTag):hex(ciphertext)"
  */
 export function encrypt(plaintext: string): string {
+  if (typeof plaintext !== 'string') {
+    throw new TypeError(
+      `encrypt() expected a string, got ${typeof plaintext}: ${String(plaintext)}`
+    )
+  }
   const key = getKey()
   const iv = randomBytes(IV_LENGTH)
   const cipher = createCipheriv(ALGORITHM, key, iv)
@@ -46,6 +51,11 @@ export function encrypt(plaintext: string): string {
  * @returns 明文字符串
  */
 export function decrypt(encoded: string): string {
+  if (typeof encoded !== 'string') {
+    throw new TypeError(
+      `decrypt() expected a string, got ${typeof encoded}: ${String(encoded)}`
+    )
+  }
   const key = getKey()
 
   const parts = encoded.split(':')
@@ -71,6 +81,9 @@ export function decrypt(encoded: string): string {
  * "abc123def456" → "abc1****f456"
  */
 export function maskApiKey(key: string): string {
+  if (typeof key !== 'string') {
+    return String(key)
+  }
   if (key.length <= 8) return `${key.slice(0, 4)}****`
   return `${key.slice(0, 4)}****${key.slice(-4)}`
 }

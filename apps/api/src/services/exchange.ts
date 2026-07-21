@@ -5,9 +5,7 @@ import type {ExchangeId, Ticker} from '@nexttrade/shared'
 const exchanges = new Map<string, Exchange>()
 
 // ─── 代理配置（国内访问交易所必需）───
-const proxyOptions = config.HTTPS_PROXY
-  ? {httpProxy: config.HTTPS_PROXY, httpsProxy: config.HTTPS_PROXY}
-  : {}
+const proxyOptions = config.HTTPS_PROXY ? {httpsProxy: config.HTTPS_PROXY} : {}
 
 function getExchange(id: ExchangeId): Exchange {
   const key = `${id}-default`
@@ -71,36 +69,15 @@ export async function createOrder(
 }
 
 /**
- * 校验交易所 API Key 的有效性
- * 创建一个临时 CCXT 实例并调用 fetchBalance 测试
+ * 校验交易所 API Key 的有效性（委托给 validator 模块）
  */
 export async function validateCredentials(
   exchangeId: string,
   credentials: {apiKey: string; apiSecret: string}
 ): Promise<{valid: boolean; error?: string}> {
-  try {
-    let ex: Exchange
-    const opts = {
-      apiKey: credentials.apiKey,
-      secret: credentials.apiSecret,
-      ...proxyOptions
-    }
-    switch (exchangeId) {
-      case 'binance':
-        ex = new ccxt.binance({...opts, options: {defaultType: 'future'}})
-        break
-      default:
-        return {valid: false, error: `Unsupported exchange: ${exchangeId}`}
-    }
-    // 轻量校验：获取账户资产，能成功返回即说明 Key 有效
-    await ex.fetchBalance()
-    return {valid: true}
-  } catch (err: any) {
-    return {
-      valid: false,
-      error: err.message || 'Failed to validate API credentials'
-    }
-  }
+  const {validateExchangeKey} = await import('./exchange/validator.js')
+  const result = await validateExchangeKey(exchangeId, credentials)
+  return {valid: result.valid, error: result.error}
 }
 
 export {getExchange}

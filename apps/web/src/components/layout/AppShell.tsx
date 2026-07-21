@@ -4,10 +4,10 @@ import {usePathname, useRouter} from 'next/navigation'
 import {
   BarChart3,
   TrendingUp,
-  ClipboardList,
   Activity,
-  Monitor,
-  Settings2
+  Settings2,
+  Key,
+  AreaChart
 } from 'lucide-react'
 import type {ReactNode} from 'react'
 
@@ -18,10 +18,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  {label: '实时看板', href: '/dashboard', icon: Monitor},
   {label: '每日行情', href: '/daily-analysis', icon: BarChart3},
+  {label: '实盘分析', href: '/analysis', icon: AreaChart},
   {label: '合约实盘', href: '/futures', icon: TrendingUp},
-  {label: '仓位分析', href: '/orders', icon: ClipboardList},
+  {label: 'API 密钥', href: '/orders', icon: Key},
   {label: '参数配置', href: '/settings', icon: Settings2}
 ]
 

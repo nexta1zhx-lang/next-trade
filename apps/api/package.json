@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "clean": "rm -rf dist",
@@ -16,6 +16,7 @@
     "@nexttrade/shared": "workspace:*",
     "argon2": "^0.45.0",
     "ccxt": "^4.4.0",
+    "decimal.js": "^10.6.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.36.0",
     "hono": "^4.6.0",
@@ -35,7 +36,7 @@
     "@types/node": "^22.0.0",
     "@types/node-cron": "^3.0.11",
     "@types/ws": "^8.18.1",
-    "drizzle-kit": "^0.28.0",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }

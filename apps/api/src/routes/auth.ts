@@ -40,8 +40,7 @@ router.post(
       .insert(users)
       .values({
         username,
-        passwordHash,
-        walletAddress: `user_${username}_${Date.now()}`
+        passwordHash
       })
       .returning({id: users.id, username: users.username})
 

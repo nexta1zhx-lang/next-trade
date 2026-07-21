@@ -1,7 +1,6 @@
 import type {
   ApiResponse,
   Ticker,
-  Order,
   AuthUser,
   StoredApiKey
 } from '@nexttrade/shared'
@@ -67,25 +66,6 @@ export const api = {
     return fetchApi<Ticker>(`/ticker?exchange=${exchange}&symbol=${symbol}`)
   },
 
-  // ─── Orders ───
-  getOrders() {
-    return fetchApi<Order[]>('/orders')
-  },
-
-  createOrder(data: {
-    exchange: string
-    symbol: string
-    side: 'buy' | 'sell'
-    type: 'market' | 'limit'
-    amount: number
-    price?: number
-  }) {
-    return fetchApi<Order>('/orders', {
-      method: 'POST',
-      body: JSON.stringify(data)
-    })
-  },
-
   // ─── 认证 ───
   async register(username: string, password: string): Promise<AuthUser> {
     const data = await fetchApi<AuthUser>('/auth/register', {
@@ -112,7 +92,7 @@ export const api = {
     clearStoredUser()
   },
 
-  // ─── API Key 管理 ───
+  // ─── V1 API Key 管理 ───
   storeApiKey(
     exchange: string,
     apiKey: string,
@@ -120,17 +100,87 @@ export const api = {
     isTestnet = false,
     label = ''
   ) {
-    return fetchApi<StoredApiKey>('/trade-audit/keys', {
+    return fetchApi<StoredApiKey>('/v1/keys', {
       method: 'POST',
-      body: JSON.stringify({exchange, apiKey, apiSecret, isTestnet, label})
+      body: JSON.stringify({
+        exchangeId: exchange,
+        apiKey,
+        apiSecret,
+        isTestnet,
+        label
+      })
     })
   },
 
   listApiKeys() {
-    return fetchApi<StoredApiKey[]>('/trade-audit/keys')
+    return fetchApi<StoredApiKey[]>('/v1/keys')
+  },
+
+  getApiKey(id: number) {
+    return fetchApi<StoredApiKey & {exchangeDisplay: string}>(`/v1/keys/${id}`)
+  },
+
+  updateApiKey(
+    id: number,
+    data: {label?: string; apiKey?: string; apiSecret?: string}
+  ) {
+    return fetchApi<StoredApiKey>(`/v1/keys/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
+  },
+
+  updateKeyStatus(id: number, status: 'ACTIVE' | 'PAUSED') {
+    return fetchApi<{id: number; status: string}>(`/v1/keys/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({status})
+    })
   },
 
   deleteApiKey(id: number) {
-    return fetchApi<{id: number}>(`/trade-audit/keys/${id}`, {method: 'DELETE'})
+    return fetchApi<{id: number}>(`/v1/keys/${id}`, {method: 'DELETE'})
+  },
+
+  // ─── V1 成交查询 ───
+  getTrades(params: {
+    keyId?: number
+    symbol?: string
+    startDate?: string
+    endDate?: string
+    page?: number
+    pageSize?: number
+  }) {
+    const qs = new URLSearchParams()
+    if (params.keyId) qs.set('keyId', String(params.keyId))
+    if (params.symbol) qs.set('symbol', params.symbol)
+    if (params.startDate) qs.set('startDate', params.startDate)
+    if (params.endDate) qs.set('endDate', params.endDate)
+    if (params.page) qs.set('page', String(params.page))
+    if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+    return fetchApi<any>(`/v1/trades?${qs}`)
+  },
+
+  getTradeStats(params: {
+    keyId?: number
+    symbol?: string
+    startDate?: string
+    endDate?: string
+  }) {
+    const qs = new URLSearchParams()
+    if (params.keyId) qs.set('keyId', String(params.keyId))
+    if (params.symbol) qs.set('symbol', params.symbol)
+    if (params.startDate) qs.set('startDate', params.startDate)
+    if (params.endDate) qs.set('endDate', params.endDate)
+    return fetchApi<any>(`/v1/trades/stats?${qs}`)
+  },
+
+  // ─── V1 资金曲线 ───
+  getEquityCurve(params: {keyId?: number; startDate: string; endDate: string}) {
+    const qs = new URLSearchParams({
+      startDate: params.startDate,
+      endDate: params.endDate
+    })
+    if (params.keyId) qs.set('keyId', String(params.keyId))
+    return fetchApi<any>(`/v1/analytics/equity-curve?${qs}`)
   }
 }

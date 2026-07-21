@@ -5,19 +5,22 @@ import {logger} from 'hono/logger'
 import {config} from './config.js'
 import {redis} from './services/redis.js'
 import {tickerRouter} from './routes/ticker.js'
-import {orderRouter} from './routes/order.js'
 import {dailyAnalysisRouter} from './routes/daily-analysis.js'
-import {marketRouter} from './routes/market.js'
-import {watchlistRouter} from './routes/watchlist.js'
-import {streamRouter} from './routes/stream.js'
-import {configRouter} from './routes/config.js'
 import {authRouter} from './routes/auth.js'
 import {tradeAuditRouter} from './routes/trade-audit.js'
+import {v1KeysRouter} from './routes/v1/keys.js'
+import {v1TradesRouter} from './routes/v1/trades.js'
+import {v1SyncRouter} from './routes/v1/sync.js'
+import {equityRouter} from './routes/v1/analytics/equity.js'
 import {authMiddleware} from './middleware/auth.js'
 import cron from 'node-cron'
-import {runDailySync} from './cron/index.js'
-import {runDailyWatchlistSync} from './cron/dailySync.js'
-import {wsManager} from './services/wsManager.js'
+import {startSnapshotScheduler} from './services/sync/scheduler.js'
+import {collectAllCapitalFlows} from './services/sync/capitalFlowService.js'
+import {aggregateAllDailySnapshots} from './services/sync/dailyAggregationService.js'
+import {reconstructHistoricalEquity} from './services/sync/historicalReconstruction.js'
+import {invalidateEquityCache} from './services/analytics/equityService.js'
+import {apiKeys} from './db/schema.js'
+import {eq} from 'drizzle-orm'
 const app = new Hono()
 
 // ─── 全局中间件 ───
@@ -39,11 +42,6 @@ app.get('/health', c => c.json({status: 'ok', timestamp: Date.now()}))
 // ─── 路由 ───
 app.route('/api/ticker', tickerRouter)
 app.route('/api/daily-analysis', dailyAnalysisRouter)
-app.route('/api/orders', orderRouter)
-app.route('/api/market', marketRouter)
-app.route('/api/market/watchlist', watchlistRouter)
-app.route('/api/stream', streamRouter)
-app.route('/api/market/config', configRouter)
 
 // ─── 认证路由（公开，带 IP 限流防暴破） ───
 app.route('/api/auth', authRouter)
@@ -51,6 +49,59 @@ app.route('/api/auth', authRouter)
 // ─── 交易审计路由（需要登录） ───
 app.use('/api/trade-audit/*', authMiddleware)
 app.route('/api/trade-audit', tradeAuditRouter)
+
+// ─── V1 API Key 管理路由 ───
+app.use('/api/v1/keys', authMiddleware)
+app.use('/api/v1/keys/*', authMiddleware)
+app.route('/api/v1/keys', v1KeysRouter)
+
+// ─── V1 成交查询路由 ───
+app.use('/api/v1/trades', authMiddleware)
+app.use('/api/v1/trades/*', authMiddleware)
+app.route('/api/v1/trades', v1TradesRouter)
+
+// ─── V1 同步路由 ───
+app.use('/api/v1/sync', authMiddleware)
+app.use('/api/v1/sync/*', authMiddleware)
+app.route('/api/v1/sync', v1SyncRouter)
+
+// ─── V1 资金曲线路由 ───
+app.use('/api/v1/analytics/*', authMiddleware)
+app.route('/api/v1/analytics/equity-curve', equityRouter)
+// ─── 启动时为已有 Key 自动补齐历史数据 ───
+async function reconstructExistingKeys(): Promise<void> {
+  try {
+    const {db} = await import('./db/index.js')
+    const {assetSnapshots} = await import('./db/schema.js')
+    const {sql} = await import('drizzle-orm')
+
+    // 找无日级快照的 ACTIVE Key
+    const keys = await db
+      .select({
+        id: apiKeys.id,
+        userId: apiKeys.userId
+      })
+      .from(apiKeys)
+      .where(eq(apiKeys.status, 'ACTIVE'))
+
+    for (const key of keys) {
+      // 检查是否已有日级快照
+      const [existing] = await db
+        .select({id: assetSnapshots.id})
+        .from(assetSnapshots)
+        .where(eq(assetSnapshots.apiKeyId, key.id))
+        .limit(1)
+
+      if (!existing) {
+        // 不 await，后台执行
+        reconstructHistoricalEquity(key.id, key.userId, 90)
+      }
+    }
+  } catch {
+    // 静默失败
+  }
+}
+
 // ─── 启动 ───
 async function main() {
   // 连接 Redis
@@ -61,17 +112,25 @@ async function main() {
     console.warn('⚠ Redis unavailable, running without cache')
   }
 
-  // 启动 WS 实时监控
-  wsManager.start()
+  // 启动余额快照（每 5 分钟）
+  startSnapshotScheduler()
 
-  // 启动定时任务（每天 UTC 00:05 自动同步）
-  cron.schedule('5 0 * * *', () => {
-    runDailySync()
-    runDailyWatchlistSync()
+  // ─── 定时任务 ───
+
+  // 每天 UTC 00:01 (北京时间 08:01): 日级资产快照聚合
+  cron.schedule('1 0 * * *', async () => {
+    await aggregateAllDailySnapshots()
   })
-  console.log(
-    '✓ Cron scheduled: daily volatility sync + watchlist at 00:05 UTC'
-  )
+  console.log('✓ Cron scheduled: daily snapshot aggregation at 00:01 UTC')
+
+  // 每整点 (UTC): 出入金流水采集
+  cron.schedule('0 * * * *', async () => {
+    await collectAllCapitalFlows()
+  })
+  console.log('✓ Cron scheduled: capital flow collection every hour')
+
+  // ─── 启动时为已有 Key 补齐历史数据（仅无 asset_snapshots 的 Key） ───
+  reconstructExistingKeys()
 
   serve({fetch: app.fetch, port: config.PORT}, (info: {port: number}) =>
     console.log(`✓ API running on http://localhost:${info.port}`)
@@ -79,7 +138,6 @@ async function main() {
 
   // 优雅退出（带强制兜底，确保 tsx watch 能正常重启）
   function shutdown() {
-    wsManager.stop()
     try {
       redis.disconnect()
     } catch {}

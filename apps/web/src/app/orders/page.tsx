@@ -8,7 +8,10 @@ import {
   LogIn,
   UserPlus,
   LogOut,
-  Trash2
+  Trash2,
+  Edit3,
+  Play,
+  Pause
 } from 'lucide-react'
 import {api, getStoredUser, clearStoredUser} from '@/lib/api'
 import type {AuthUser, StoredApiKey} from '@nexttrade/shared'
@@ -56,6 +59,54 @@ function ExchangeIcon({
           </text>
         </svg>
       )
+    case 'bitget':
+      return (
+        <svg {...props} fill="none">
+          <rect x="1" y="1" width="30" height="30" rx="6" fill="#1E6DF2" />
+          <text
+            x="16"
+            y="22"
+            textAnchor="middle"
+            fontSize="14"
+            fontWeight="bold"
+            fill="#fff"
+          >
+            Bg
+          </text>
+        </svg>
+      )
+    case 'gate':
+      return (
+        <svg {...props} fill="none">
+          <rect x="1" y="1" width="30" height="30" rx="6" fill="#1F2329" />
+          <text
+            x="16"
+            y="22"
+            textAnchor="middle"
+            fontSize="14"
+            fontWeight="bold"
+            fill="#fff"
+          >
+            GT
+          </text>
+        </svg>
+      )
+    case 'mexc':
+      return (
+        <svg {...props} fill="none">
+          <rect x="1" y="1" width="30" height="30" rx="6" fill="#00B4E6" />
+          <text
+            x="16"
+            y="22"
+            textAnchor="middle"
+            fontSize="14"
+            fontWeight="bold"
+            fill="#fff"
+          >
+            MX
+          </text>
+        </svg>
+      )
     default:
       return (
         <span
@@ -68,7 +119,53 @@ function ExchangeIcon({
   }
 }
 
-// ─── 子组件: 登录/注册 ───
+// ─── 交易所选择列表 ───
+const EXCHANGE_OPTIONS = [
+  {value: 'binance', label: 'Binance'},
+  {value: 'okx', label: 'OKX'},
+  {value: 'bybit', label: 'Bybit'},
+  {value: 'bitget', label: 'Bitget'},
+  {value: 'gate', label: 'Gate.io'},
+  {value: 'mexc', label: 'MEXC'}
+] as const
+
+// ─── 状态徽章 ───
+function StatusBadge({status}: {status: string}) {
+  const colors: Record<string, string> = {
+    ACTIVE: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    PAUSED: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+    INVALID: 'bg-red-500/10 text-red-400 border-red-500/30'
+  }
+  const labels: Record<string, string> = {
+    ACTIVE: '同步中',
+    PAUSED: '已暂停',
+    INVALID: '已失效'
+  }
+  return (
+    <span
+      className={`text-[10px] px-1.5 py-0.5 rounded-full border ${colors[status] ?? colors.INVALID}`}
+    >
+      {labels[status] ?? status}
+    </span>
+  )
+}
+
+// ─── 时间格式化 ───
+function fmtTime(iso: string | null): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  if (diffMs < 60000) return '刚刚'
+  if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)} 分钟前`
+  if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)} 小时前`
+  return d.toLocaleDateString('zh-CN')
+}
+
+// ══════════════════════════════════════════
+// 登录/注册
+// ══════════════════════════════════════════
+
 function AuthForm({onAuth}: {onAuth: () => void}) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [username, setUsername] = useState('')
@@ -81,11 +178,8 @@ function AuthForm({onAuth}: {onAuth: () => void}) {
     setLoading(true)
     setError(null)
     try {
-      if (mode === 'register') {
-        await api.register(username, password)
-      } else {
-        await api.login(username, password)
-      }
+      if (mode === 'register') await api.register(username, password)
+      else await api.login(username, password)
       onAuth()
     } catch (err) {
       setError((err as Error).message)
@@ -107,40 +201,33 @@ function AuthForm({onAuth}: {onAuth: () => void}) {
             {mode === 'login' ? '登录' : '注册'}
           </h2>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <input
-              type="text"
-              placeholder="用户名"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
-                         focus:outline-none focus:border-primary transition-colors"
-              minLength={3}
-              required
-            />
-          </div>
-          <div>
-            <input
-              type="password"
-              placeholder="密码"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
-                         focus:outline-none focus:border-primary transition-colors"
-              minLength={6}
-              required
-            />
-          </div>
-
+          <input
+            type="text"
+            placeholder="用户名"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
+                       focus:outline-none focus:border-primary transition-colors"
+            minLength={3}
+            required
+          />
+          <input
+            type="password"
+            placeholder="密码"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
+                       focus:outline-none focus:border-primary transition-colors"
+            minLength={6}
+            required
+          />
           {error && (
             <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">
               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
               {error}
             </div>
           )}
-
           <button
             type="submit"
             disabled={loading}
@@ -150,7 +237,6 @@ function AuthForm({onAuth}: {onAuth: () => void}) {
             {loading ? '处理中…' : mode === 'login' ? '登录' : '注册'}
           </button>
         </form>
-
         <p className="mt-4 text-xs text-center text-muted-foreground">
           {mode === 'login' ? '没有账号？' : '已有账号？'}
           <button
@@ -168,15 +254,15 @@ function AuthForm({onAuth}: {onAuth: () => void}) {
   )
 }
 
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════
 // 主页面
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════
 
 export default function OrdersPage() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // ─── API Key 状态 ───
+  // ─── API Key 管理状态 ───
   const [apiKeys, setApiKeys] = useState<StoredApiKey[]>([])
   const [showAddKey, setShowAddKey] = useState(false)
   const [newKeyLabel, setNewKeyLabel] = useState('')
@@ -186,17 +272,18 @@ export default function OrdersPage() {
   const [keyError, setKeyError] = useState<string | null>(null)
   const [keyLoading, setKeyLoading] = useState(false)
 
-  // ─── 初始化：检查登录状态 + 加载 API Key ───
+  // ─── 编辑状态 ───
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editLabel, setEditLabel] = useState('')
+
+  // ─── 初始化 ───
   useEffect(() => {
     const stored = getStoredUser()
     setUser(stored)
-    if (stored) {
-      loadKeys()
-    }
+    if (stored) loadKeys()
     setLoading(false)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
-  // 登录后自动加载 API Key
   const handleAuth = useCallback(() => {
     const stored = getStoredUser()
     setUser(stored)
@@ -210,17 +297,14 @@ export default function OrdersPage() {
     setApiKeys([])
   }
 
-  // ─── 加载 API Key ───
   const loadKeys = useCallback(async () => {
     try {
       const keys = await api.listApiKeys()
       setApiKeys(keys)
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, [])
 
-  // ─── 添加 API Key ───
+  // ─── 添加 Key ───
   const handleAddKey = async () => {
     setKeyLoading(true)
     setKeyError(null)
@@ -238,17 +322,37 @@ export default function OrdersPage() {
     }
   }
 
-  // ─── 删除 API Key ───
+  // ─── 删除 Key ───
   const handleDeleteKey = async (id: number) => {
     try {
       await api.deleteApiKey(id)
       await loadKeys()
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 
-  // ─── 加载中 ───
+  // ─── 暂停/恢复 ───
+  const handleTogglePause = async (key: StoredApiKey) => {
+    try {
+      const newStatus = key.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE'
+      await api.updateKeyStatus(key.id, newStatus)
+      await loadKeys()
+    } catch {}
+  }
+
+  // ─── 编辑标签 ───
+  const handleStartEdit = (key: StoredApiKey) => {
+    setEditingId(key.id)
+    setEditLabel(key.label)
+  }
+
+  const handleSaveLabel = async (id: number) => {
+    try {
+      await api.updateApiKey(id, {label: editLabel})
+      setEditingId(null)
+      await loadKeys()
+    } catch {}
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -257,17 +361,12 @@ export default function OrdersPage() {
     )
   }
 
-  // ─── 未登录 ───
-  if (!user) {
-    return <AuthForm onAuth={handleAuth} />
-  }
+  if (!user) return <AuthForm onAuth={handleAuth} />
 
-  // ══════════════════════════════════════════════
-  // 已登录: API Key 管理界面
-  // ══════════════════════════════════════════════
+  // ══════════════════════════════════════════
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
-      {/* ─── 顶栏：用户 + Key 管理 ─── */}
+    <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+      {/* 顶栏 */}
       <div className="bg-[#18181b] rounded-xl border border-gray-800 p-4 mb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -275,6 +374,9 @@ export default function OrdersPage() {
             <h1 className="text-base font-semibold">API 密钥</h1>
             <span className="text-xs text-muted-foreground">
               @{user.username}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {apiKeys.length} 个账户
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -284,7 +386,7 @@ export default function OrdersPage() {
                          hover:bg-primary/20 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
-              {apiKeys.length === 0 ? '添加 API Key' : '添加 Key'}
+              添加 Key
             </button>
             <button
               onClick={handleLogout}
@@ -301,18 +403,16 @@ export default function OrdersPage() {
         {showAddKey && (
           <div className="mt-4 pt-4 border-t border-gray-800">
             <div className="flex flex-wrap items-end gap-3">
-              {/* 自定义名称 */}
-              <div className="w-full sm:w-auto">
+              <div>
                 <p className="text-xs text-muted-foreground mb-1">备注名称</p>
                 <input
                   value={newKeyLabel}
                   onChange={e => setNewKeyLabel(e.target.value)}
-                  placeholder="如: 主账户 / 子账户1"
-                  className="w-32 bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
+                  placeholder="如: 主账户"
+                  className="w-28 bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
                              focus:outline-none focus:border-primary"
                 />
               </div>
-              {/* 交易所选择 */}
               <div>
                 <p className="text-xs text-muted-foreground mb-1">交易所</p>
                 <select
@@ -321,32 +421,30 @@ export default function OrdersPage() {
                   className="w-28 bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
                              focus:outline-none focus:border-primary text-gray-200"
                 >
-                  <option value="binance">Binance</option>
-                  <option value="okx" disabled>
-                    OKX (即将支持)
-                  </option>
-                  <option value="bybit" disabled>
-                    Bybit (即将支持)
-                  </option>
+                  {EXCHANGE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
-              <div className="flex-1 min-w-[180px]">
+              <div className="flex-1 min-w-[160px]">
                 <p className="text-xs text-muted-foreground mb-1">API Key</p>
                 <input
                   value={newKey}
                   onChange={e => setNewKey(e.target.value)}
-                  placeholder="binance API Key"
+                  placeholder="API Key"
                   className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
                              focus:outline-none focus:border-primary"
                 />
               </div>
-              <div className="flex-1 min-w-[180px]">
+              <div className="flex-1 min-w-[160px]">
                 <p className="text-xs text-muted-foreground mb-1">Secret Key</p>
                 <input
                   type="password"
                   value={newSecret}
                   onChange={e => setNewSecret(e.target.value)}
-                  placeholder="binance Secret Key"
+                  placeholder="Secret Key"
                   className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
                              focus:outline-none focus:border-primary"
                 />
@@ -368,51 +466,116 @@ export default function OrdersPage() {
               </div>
             )}
             <p className="mt-2 text-[10px] text-muted-foreground">
-              ⚠️ 请确保 API Key 在币安后台设置为
-              <strong>仅只读 (Read-Only)</strong>，禁用交易权限
-            </p>
-          </div>
-        )}
-
-        {/* Key 列表 */}
-        {apiKeys.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {apiKeys.map(k => (
-              <div
-                key={k.id}
-                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border
-                           border-gray-700 text-muted-foreground"
-              >
-                <ExchangeIcon exchange={k.exchange} size={18} />
-                {k.label && (
-                  <span className="text-muted-foreground truncate max-w-[80px]">
-                    {k.label}
-                  </span>
-                )}
-                <Key className="w-3 h-3 shrink-0" />
-                <span className="truncate max-w-[100px]">{k.apiKey}</span>
-                <button
-                  onClick={() => handleDeleteKey(k.id)}
-                  className="text-gray-600 hover:text-red-400 shrink-0"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* 空状态 */}
-        {apiKeys.length === 0 && !showAddKey && (
-          <div className="mt-4 text-center py-8 text-muted-foreground">
-            <Key className="w-10 h-10 mx-auto mb-2 opacity-20" />
-            <p className="text-sm">暂无 API Key</p>
-            <p className="text-xs mt-1">
-              点击上方"添加 API Key"按钮添加交易所密钥
+              ⚠️ 建议使用<b>仅只读</b>权限的 API
+              Key，交易所后台开启禁止交易和提现
             </p>
           </div>
         )}
       </div>
+
+      {/* Key 列表 */}
+      {apiKeys.length > 0 ? (
+        <div className="space-y-2">
+          {apiKeys.map(k => (
+            <div
+              key={k.id}
+              className="bg-[#18181b] rounded-xl border border-gray-800 p-4
+                         hover:border-gray-700 transition-colors"
+            >
+              <div className="flex flex-wrap items-center gap-3">
+                {/* 交易所图标 */}
+                <ExchangeIcon exchange={k.exchange} size={22} />
+
+                {/* 标签/编辑 */}
+                <div className="flex-1 min-w-0">
+                  {editingId === k.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={editLabel}
+                        onChange={e => setEditLabel(e.target.value)}
+                        className="w-36 bg-[#0a0a0b] border border-gray-700 rounded px-2 py-1 text-xs
+                                   focus:outline-none focus:border-primary"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => handleSaveLabel(k.id)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        保存
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="text-xs text-muted-foreground hover:underline"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate max-w-[120px]">
+                        {k.label || k.exchange.toUpperCase()}
+                      </span>
+                      <button
+                        onClick={() => handleStartEdit(k)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* API Key 遮掩 */}
+                <span className="text-xs font-mono text-muted-foreground hidden sm:inline">
+                  {k.apiKey}
+                </span>
+
+                {/* 状态徽章 */}
+                <StatusBadge status={k.status} />
+
+                {/* 上次同步 */}
+                <span className="text-[10px] text-muted-foreground hidden md:inline">
+                  {k.lastSyncAt ? `同步: ${fmtTime(k.lastSyncAt)}` : '未同步'}
+                </span>
+
+                {/* 操作按钮 */}
+                <div className="flex items-center gap-1">
+                  {/* 暂停/恢复 */}
+                  <button
+                    onClick={() => handleTogglePause(k)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground
+                               hover:bg-muted/50 transition-colors"
+                    title={k.status === 'ACTIVE' ? '暂停同步' : '恢复同步'}
+                  >
+                    {k.status === 'ACTIVE' ? (
+                      <Pause className="w-3.5 h-3.5" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+
+                  {/* 删除 */}
+                  <button
+                    onClick={() => handleDeleteKey(k.id)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400
+                               hover:bg-red-500/10 transition-colors"
+                    title="删除"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* 空状态 */
+        <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+          <Key className="w-12 h-12 mb-3 opacity-20" />
+          <p className="text-sm">暂无 API Key</p>
+          <p className="text-xs mt-1">点击右上角"添加 Key"绑定交易所账户</p>
+        </div>
+      )}
     </div>
   )
 }
