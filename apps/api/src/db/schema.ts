@@ -52,5 +52,3 @@ export const orders = pgTable('orders', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 })
-
-// ─── 交易复盘 (直接 import from ./schema/trade.js 使用) ───

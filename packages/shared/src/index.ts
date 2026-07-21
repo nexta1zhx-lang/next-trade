@@ -174,59 +174,6 @@ export interface RegisterRequest {
   password: string
 }
 
-// ─── 交易审计记录 ───
-export interface TradeAuditRecord {
-  id: string
-  symbol: string
-  side: 'buy' | 'sell'
-  entryPrice: number
-  exitPrice: number
-  realizedPnl: number
-  fee: number
-  mae: number // Maximum Adverse Excursion (%)
-  mfe: number // Maximum Favorable Excursion (%)
-  openedAt: string // ISO
-  closedAt: string // ISO
-  orderId: string
-  volume: number
-}
-
-export interface TradeAuditResult {
-  keyId: number
-  exchange: string
-  startDate: string
-  endDate: string
-  records: TradeAuditRecord[]
-  totalPnl: number
-  totalFee: number
-  winRate: number
-  tradeCount: number
-  tradeVolume: number
-}
-
-// ─── 交易复盘 ───
-export interface TradeReview {
-  id: number
-  userId: number
-  tradeAuditId: string
-  symbol: string
-  strategyTags: string[]
-  errorTags: string[]
-  rating: number // 1-5
-  notes: string // Markdown
-  createdAt: string
-  updatedAt: string
-}
-
-export interface TradeReviewSave {
-  tradeAuditId: string
-  symbol: string
-  strategyTags: string[]
-  errorTags: string[]
-  rating: number
-  notes: string
-}
-
 // ─── API Key 管理 ───
 export interface StoredApiKey {
   id: number
@@ -235,22 +182,4 @@ export interface StoredApiKey {
   apiKey: string // masked: "bin****f456"
   isTestnet: boolean
   createdAt: string
-}
-
-// ─── K 线买卖点数据 ───
-export interface TradeCandle {
-  time: number // unix seconds
-  open: number
-  high: number
-  low: number
-  close: number
-  volume: number
-}
-
-export interface TradeMarker {
-  time: number // unix seconds
-  position: 'aboveBar' | 'belowBar'
-  color: string
-  shape: 'arrowUp' | 'arrowDown'
-  text: string
 }

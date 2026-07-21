@@ -3,10 +3,7 @@ import type {
   Ticker,
   Order,
   AuthUser,
-  StoredApiKey,
-  TradeAuditResult,
-  TradeReview,
-  TradeReviewSave
+  StoredApiKey
 } from '@nexttrade/shared'
 
 // 开发时直连 API 端口（绕过 Next.js proxy 超时限制）
@@ -135,68 +132,5 @@ export const api = {
 
   deleteApiKey(id: number) {
     return fetchApi<{id: number}>(`/trade-audit/keys/${id}`, {method: 'DELETE'})
-  },
-
-  // ─── 交易审计 ───
-  analyzeTrades(params: {
-    keyId: number
-    symbol?: string
-    startDate: string
-    endDate: string
-    orderId?: string
-  }) {
-    return fetchApi<TradeAuditResult & {candles: any[]; markers: any[]}>(
-      '/trade-audit/analyze',
-      {method: 'POST', body: JSON.stringify(params)}
-    )
-  },
-
-  // ─── 按需 K 线（展开交易时调用） ───
-  getTradeCandles(params: {
-    keyId: number
-    symbol: string
-    entryPrice: number
-    side: 'buy' | 'sell'
-    openedAt: number
-    closedAt: number
-  }) {
-    return fetchApi<{candles: any[]; markers: any[]; mae: number; mfe: number}>(
-      '/trade-audit/candles',
-      {method: 'POST', body: JSON.stringify(params)}
-    )
-  },
-
-  // ─── 仓位历史（bapi position/history） ───
-  getPositionHistory(params: {
-    keyId: number
-    symbol?: string
-    startDate?: string
-    endDate?: string
-  }) {
-    const qs = new URLSearchParams({keyId: String(params.keyId)})
-    if (params.symbol) qs.set('symbol', params.symbol)
-    if (params.startDate) qs.set('startDate', params.startDate)
-    if (params.endDate) qs.set('endDate', params.endDate)
-    return fetchApi<{records: any[]; count: number}>(
-      `/v1/position-history?${qs}`
-    )
-  },
-
-  // ─── 交易复盘 ───
-  saveReview(data: TradeReviewSave) {
-    return fetchApi<TradeReview>('/trade-audit/reviews', {
-      method: 'POST',
-      body: JSON.stringify(data)
-    })
-  },
-
-  listReviews() {
-    return fetchApi<TradeReview[]>('/trade-audit/reviews')
-  },
-
-  deleteReview(id: number) {
-    return fetchApi<{id: number}>(`/trade-audit/reviews/${id}`, {
-      method: 'DELETE'
-    })
   }
 }

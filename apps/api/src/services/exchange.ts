@@ -38,9 +38,12 @@ function getExchange(id: ExchangeId): Exchange {
   return exchange
 }
 
-export async function fetchTicker(exchangeId: ExchangeId, symbol: string): Promise<Ticker> {
-  const ex = getExchange(exchangeId);
-  const ticker = await ex.fetchTicker(symbol);
+export async function fetchTicker(
+  exchangeId: ExchangeId,
+  symbol: string
+): Promise<Ticker> {
+  const ex = getExchange(exchangeId)
+  const ticker = await ex.fetchTicker(symbol)
 
   return {
     exchange: exchangeId,
@@ -50,8 +53,8 @@ export async function fetchTicker(exchangeId: ExchangeId, symbol: string): Promi
     volume24h: ticker.baseVolume ?? 0,
     high24h: ticker.high ?? 0,
     low24h: ticker.low ?? 0,
-    timestamp: ticker.timestamp ?? Date.now(),
-  };
+    timestamp: ticker.timestamp ?? Date.now()
+  }
 }
 
 export async function createOrder(
@@ -60,11 +63,44 @@ export async function createOrder(
   side: 'buy' | 'sell',
   type: 'market' | 'limit',
   amount: number,
-  price?: number,
+  price?: number
 ) {
-  const ex = getExchange(exchangeId);
-  const order = await ex.createOrder(symbol, type, side, amount, price);
-  return order;
+  const ex = getExchange(exchangeId)
+  const order = await ex.createOrder(symbol, type, side, amount, price)
+  return order
 }
 
-export { getExchange };
+/**
+ * 校验交易所 API Key 的有效性
+ * 创建一个临时 CCXT 实例并调用 fetchBalance 测试
+ */
+export async function validateCredentials(
+  exchangeId: string,
+  credentials: {apiKey: string; apiSecret: string}
+): Promise<{valid: boolean; error?: string}> {
+  try {
+    let ex: Exchange
+    const opts = {
+      apiKey: credentials.apiKey,
+      secret: credentials.apiSecret,
+      ...proxyOptions
+    }
+    switch (exchangeId) {
+      case 'binance':
+        ex = new ccxt.binance({...opts, options: {defaultType: 'future'}})
+        break
+      default:
+        return {valid: false, error: `Unsupported exchange: ${exchangeId}`}
+    }
+    // 轻量校验：获取账户资产，能成功返回即说明 Key 有效
+    await ex.fetchBalance()
+    return {valid: true}
+  } catch (err: any) {
+    return {
+      valid: false,
+      error: err.message || 'Failed to validate API credentials'
+    }
+  }
+}
+
+export {getExchange}
