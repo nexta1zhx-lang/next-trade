@@ -126,10 +126,11 @@ export async function takeSnapshot(
 
     // ═══════════════════════════════════════════
     // 获取全量资产并折算为 USDT 总净值
+    //   总权益 = 现货折算 USDT + 合约权益 USDT
     // ═══════════════════════════════════════════
     let totalUsdt = new Decimal(0)
 
-    // 1) 现货账户（所有币种）
+    // 1) 现货账户：Σ(持仓数量 × 当前价格)
     try {
       const spotEx = createExchange(stored.exchangeId, 'spot', {
         apiKey: stored.apiKey,
@@ -137,53 +138,46 @@ export async function takeSnapshot(
         passphrase: rawPassphrase
       })
       const spotBal = await spotEx.fetchBalance()
-
-      // 遍历所有非零币种，折算为 USDT
-      for (const [coin, acct] of Object.entries(spotBal)) {
-        if (
-          coin === 'info' ||
-          coin === 'free' ||
-          coin === 'used' ||
-          coin === 'total'
-        )
-          continue
-        const bal = acct as {free?: number; used?: number; total?: number}
-        const total = bal.total ?? 0
-        if (!total || Number(total) <= 0) continue
-
-        if (coin === 'USDT' || coin === 'usdt') {
-          totalUsdt = totalUsdt.add(total)
+      const spotTotal = (spotBal as any).total ?? {}
+      for (const [coin, amount] of Object.entries(spotTotal)) {
+        const amt = Number(amount) || 0
+        if (amt <= 0) continue
+        if (coin.toUpperCase() === 'USDT') {
+          totalUsdt = totalUsdt.add(amt)
         } else {
-          // 非 USDT 币种：获取当前价格折算
           try {
             const ticker = await spotEx.fetchTicker(`${coin}/USDT`)
             const price = ticker.last ?? 0
-            totalUsdt = totalUsdt.add(new Decimal(total).mul(price))
+            if (price > 0) totalUsdt = totalUsdt.add(amt * price)
           } catch {
-            // 无法获取价格的币种跳过
+            /* 无法获取价格跳过 */
           }
         }
       }
     } catch {} // 现货失败不影响
 
-    // 2) 合约账户 (USDT-M swap)
+    // 2) 合约权益 (USDT-M swap): 钱包余额 + 未实现盈亏
     try {
       const swapBal = await ex.fetchBalance()
-      // CCXT swap balance 中的 USDT total 已包含未实现盈亏
-      const swapUsdt = swapBal.USDT?.total ?? swapBal.usdt?.total ?? 0
-      if (Number(swapUsdt) > 0) totalUsdt = totalUsdt.add(swapUsdt)
-
-      // 额外提取 info 中的未实现盈亏
-      if (swapBal.info?.assets) {
-        for (const asset of swapBal.info.assets) {
+      const swapTotal = (swapBal as any).total ?? {}
+      // 先从 total 取 USDT 余额（CCXT 通常已包含未实现盈亏）
+      let swapEquity = Number(swapTotal['USDT']) || 0
+      // 再尝试从 info 读取未实现盈亏补充
+      const info = (swapBal as any).info
+      if (info?.assets) {
+        for (const asset of info.assets) {
           if (asset.asset === 'USDT') {
-            const upnl = asset.unrealizedProfit ?? 0
-            if (Number(upnl) !== 0) {
-              // 如果 USDT.total 未包含未实现盈亏，补加
+            const upnl = Number(asset.unrealizedProfit) || 0
+            const walletBal = Number(asset.walletBalance) || 0
+            // 如果 swapTotal.USDT 不可靠，用 walletBalance + unrealizedProfit
+            if (swapEquity === 0 && (walletBal > 0 || upnl !== 0)) {
+              swapEquity = walletBal + upnl
             }
+            break
           }
         }
       }
+      if (swapEquity > 0) totalUsdt = totalUsdt.add(swapEquity)
     } catch (swapErr: any) {
       if (!swapErr.message?.includes('capital/config')) {
         console.warn(
@@ -193,7 +187,7 @@ export async function takeSnapshot(
       }
     }
 
-    // 3) 币本位合约/交割账户 (COIN-M)
+    // 3) 币本位合约 (COIN-M): 按当前价折算 USDT
     try {
       const coinmEx = createExchange(stored.exchangeId, 'future', {
         apiKey: stored.apiKey,
@@ -201,25 +195,18 @@ export async function takeSnapshot(
         passphrase: rawPassphrase
       })
       const coinmBal = await coinmEx.fetchBalance()
-      // 币本位账户余额以各币种计价，需折算为 USDT
-      if (coinmBal.info?.assets) {
-        for (const asset of coinmBal.info.assets) {
-          const coin = asset.asset as string
-          const walletBal = asset.walletBalance ?? 0
-          const upnl = asset.unrealizedProfit ?? 0
-          const totalCoinValue = new Decimal(walletBal).add(upnl)
-          if (totalCoinValue.isZero()) continue
-
-          if (coin === 'USDT') {
-            totalUsdt = totalUsdt.add(totalCoinValue)
-          } else {
-            // 如 BTC、ETH 等，按当前价折算
-            try {
-              const ticker = await ex.fetchTicker(`${coin}/USDT`)
-              const price = ticker.last ?? 0
-              totalUsdt = totalUsdt.add(totalCoinValue.mul(price))
-            } catch {}
-          }
+      const coinmTotal = (coinmBal as any).total ?? {}
+      for (const [coin, amount] of Object.entries(coinmTotal)) {
+        const amt = Number(amount) || 0
+        if (amt <= 0) continue
+        if (coin.toUpperCase() === 'USDT') {
+          totalUsdt = totalUsdt.add(amt)
+        } else {
+          try {
+            const ticker = await ex.fetchTicker(`${coin}/USDT`)
+            const price = ticker.last ?? 0
+            if (price > 0) totalUsdt = totalUsdt.add(amt * price)
+          } catch {}
         }
       }
     } catch {} // 币本位失败不影响

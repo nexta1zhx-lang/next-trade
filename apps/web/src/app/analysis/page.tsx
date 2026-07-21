@@ -192,6 +192,10 @@ export default function AnalysisPage() {
           startDate,
           endDate
         })
+        console.log(
+          '[analysis] API result:',
+          JSON.stringify(result).slice(0, 500)
+        )
         setData(result)
         setLastRefresh(new Date().toLocaleTimeString('zh-CN', {hour12: false}))
       } catch (err) {
@@ -391,16 +395,15 @@ export default function AnalysisPage() {
         </div>
       )}
 
-      {selectedKeyId && !loading && !data?.points?.length && !error && (
-        <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-          <Activity className="w-12 h-12 mb-3 opacity-20" />
-          <p className="text-sm">暂无交易数据</p>
-          <p className="text-xs mt-1">请先在 API 密钥页面对该 Key 执行同步</p>
+      {selectedKeyId && !loading && !data && !error && (
+        <div className="flex items-center justify-center h-64 text-muted-foreground">
+          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
+          加载中...
         </div>
       )}
 
-      {/* ═══════ 数据展示 ═══════ */}
-      {!loading && data && data.points.length > 0 && (
+      {/* ═══════ 数据展示（始终渲染图表区域） ═══════ */}
+      {!loading && data && (
         <>
           {/* ─── 核心指标卡片 ─── */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

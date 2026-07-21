@@ -89,6 +89,22 @@ export async function computeEquityCurve(
   // ─── 2. DB 查询 ───
   const data = await computeFromDb(query)
 
+  // ─── 2.5 无数据时自动从交易所拉取当前余额作为锚点 ───
+  if (data.points.length === 0 && query.keyId) {
+    try {
+      const {reconstructHistoricalEquity} =
+        await import('../sync/historicalReconstruction.js')
+      const r = await reconstructHistoricalEquity(query.keyId, query.userId, 1)
+      if (r.success && r.snapshotsCreated > 0) {
+        // 重新查一次 DB（这次有数据了）
+        const freshData = await computeFromDb(query)
+        if (freshData.points.length > 0) {
+          return freshData
+        }
+      }
+    } catch {}
+  }
+
   // ─── 3. 写入 Redis 缓存（仅缓存有效数据） ───
   if (
     redis.status === 'ready' &&
@@ -167,8 +183,9 @@ async function computeFromDb(query: EquityQuery): Promise<EquityCurveData> {
 
   const equityByDate = new Map<string, Decimal>()
   for (const r of snapRows) {
-    if (!equityByDate.has(r.snapDate)) {
-      equityByDate.set(r.snapDate, new Decimal(r.totalEquity))
+    const val = new Decimal(r.totalEquity)
+    if (!equityByDate.has(r.snapDate) && val.gt(0)) {
+      equityByDate.set(r.snapDate, val)
     }
   }
 
@@ -221,9 +238,13 @@ async function computeFromDb(query: EquityQuery): Promise<EquityCurveData> {
 
   const snap5mByDate = new Map<string, Decimal>()
   for (const s of intradayRows) {
-    const date = new Date(s.snapshotAt).toISOString().slice(0, 10)
-    if (!snap5mByDate.has(date)) {
-      snap5mByDate.set(date, new Decimal(s.totalNetValue))
+    const val = new Decimal(s.totalNetValue)
+    if (val.gt(0)) {
+      const date = new Date(s.snapshotAt).toISOString().slice(0, 10)
+      // 取当天最大的非零值（最新的有效快照）
+      if (!snap5mByDate.has(date) || val.gt(snap5mByDate.get(date)!)) {
+        snap5mByDate.set(date, val)
+      }
     }
   }
 

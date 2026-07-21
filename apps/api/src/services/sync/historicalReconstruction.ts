@@ -139,16 +139,19 @@ export async function reconstructHistoricalEquity(
     if (currentEquity <= 0) {
       // 余额为 0 时仍然创建一条今日快照，避免 NAV 算法无锚点
       const today = new Date().toISOString().slice(0, 10)
-      await db.insert(assetSnapshots).values({
-        apiKeyId,
-        snapDate: today,
-        totalEquity: '0',
-        spotValue: '0',
-        contractEquity: '0',
-        unrealizedPnl: '0',
-        snapshotAt: new Date(today + 'T00:00:00.000Z'),
-        isReconstructed: true
-      }).catch(() => {})
+      await db
+        .insert(assetSnapshots)
+        .values({
+          apiKeyId,
+          snapDate: today,
+          totalEquity: '0',
+          spotValue: '0',
+          contractEquity: '0',
+          unrealizedPnl: '0',
+          snapshotAt: new Date(today + 'T00:00:00.000Z'),
+          isReconstructed: true
+        })
+        .catch(() => {})
       result.snapshotsCreated = 1
       result.oldestDate = today
       result.success = true
@@ -290,40 +293,24 @@ interface LedgerEntry {
 /**
  * 从 fetchBalance 返回值中计算总 USDT 净值
  *
- * CCXT balance 结构示例:
- *   { info: {...}, USDT: {free: 100, used: 50, total: 150},
- *     free: {USDT: 100}, used: {USDT: 50}, total: {USDT: 150} }
- *
- * 我们只遍历 currency 条目（非 info/free/used/total 等顶层元字段），
- * 且每个 currency 条目必须是对象且有 total 属性。
+ * CCXT balance 顶层 total 对象结构: { USDT: 150.75, BTC: 0.5, ETH: 2.0 }
+ * 账户总权益 = Σ(币种数量 × 当前USDT价格)
  */
 function calculateTotalUsdt(balance: any): number {
-  let total = new Decimal(0)
-  const skipKeys = new Set([
-    'info',
-    'free',
-    'used',
-    'total',
-    'datetime',
-    'timestamp',
-    'freeRates',
-    'usedRates'
-  ])
+  const totals = balance.total ?? {}
+  let totalUsdt = new Decimal(0)
 
-  for (const [coin, acct] of Object.entries(balance)) {
-    if (skipKeys.has(coin)) continue
-    if (!acct || typeof acct !== 'object') continue
-
-    const bal = acct as Record<string, any>
-    const b = typeof bal.total === 'number' ? bal.total : Number(bal.total ?? 0)
-    if (!b || b <= 0) continue
+  for (const [coin, amount] of Object.entries(totals)) {
+    const amt = Number(amount) || 0
+    if (amt <= 0) continue
     if (coin.toUpperCase() === 'USDT') {
-      total = total.add(b)
+      totalUsdt = totalUsdt.add(amt)
     }
-    // 非 USDT 币种：跳过（fetchLedger 返回即 USDT 本位）
+    // 非 USDT 币种：简化处理，仅统计 USDT
+    // 真实场景中应调用 fetchTicker 折算，这里交由 snapshot 服务处理
   }
 
-  return total.toNumber()
+  return totalUsdt.toNumber()
 }
 
 /**
