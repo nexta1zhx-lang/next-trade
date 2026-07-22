@@ -201,75 +201,33 @@ export interface UpdateApiKeyPayload {
   passphrase?: string
 }
 
-// ─── 资金曲线 ───
-export interface EquityPoint {
-  /** UTC 日期 YYYY-MM-DD */
+// ─── 币种标签 ───
+export interface SymbolTag {
+  id: number
+  symbol: string
+  tag: string
+  color: string
+  createdAt: string
+}
+
+export interface SymbolTagCreate {
+  tag: string
+  color?: string
+}
+
+// ─── 交易日记 ───
+export interface SymbolJournal {
+  id: number
+  symbol: string
   date: string
-  /** 当日净值（USDT） */
-  netValue: number
-  /** 累计收益率（%） */
-  cumulativeReturn: number
-  /** 当日盈亏（USDT） */
-  dailyPnl: number
-  /** 距前期高点回撤（%） */
-  drawdown: number
-  /** 累计已实现盈亏（USDT） */
-  cumulativePnl: number
+  title: string
+  content: string
+  createdAt: string
+  updatedAt: string
 }
 
-export interface EquityPerformanceMetrics {
-  /** 夏普比率（年化，无风险利率 4%） */
-  sharpeRatio: number
-  /** 卡尔玛比率（年化收益率 / 最大回撤） */
-  calmarRatio: number
-  /** 年化收益率（%） */
-  annualizedReturn: number
-  /** 年化波动率（%） */
-  annualizedVolatility: number
-  /** 胜率（%）- 盈利天数占比 */
-  winRate: number
-  /** 盈亏比 */
-  profitLossRatio: number
-  /** 盈利天数 */
-  winDays: number
-  /** 亏损天数 */
-  lossDays: number
-  /** 日均盈亏 */
-  avgDailyPnl: number
-  /** 最大单日盈利 */
-  maxDailyWin: number
-  /** 最大单日亏损 */
-  maxDailyLoss: number
-  /** 净值高点到当前的回撤持续天数 */
-  drawdownDays: number
-  /** 回撤恢复天数（从峰值到恢复的天数） */
-  recoveryDays: number
-}
-
-export interface EquityCurveData {
-  /** 起始日期 */
-  startDate: string
-  /** 结束日期 */
-  endDate: string
-  /** 初始资金（USDT） */
-  initialCapital: number
-  /** 最新净值 */
-  currentNetValue: number
-  /** 累计收益率（%） */
-  totalReturn: number
-  /** 历史最大回撤（%） */
-  maxDrawdown: number
-  /** 曲线数据点 */
-  points: EquityPoint[]
-  /** 增强性能指标 */
-  metrics?: EquityPerformanceMetrics
-  /** 基准对比数据（可选） */
-  benchmark?: {
-    name: string
-    points: Array<{date: string; value: number}>
-  }
-  /** 数据来源: snapshot=快照精确值, trade=成交推算 */
-  source?: 'snapshot' | 'trade'
-  /** 缓存时间戳 */
-  cachedAt?: number
+export interface SymbolJournalSave {
+  date: string
+  title?: string
+  content: string
 }

@@ -348,3 +348,73 @@ export const capitalFlows = pgTable(
     )
   })
 )
+
+// ═══════════════════════════════════════════
+// 币种标签表
+// ═══════════════════════════════════════════
+export const symbolTags = pgTable(
+  'symbol_tags',
+  {
+    id: serial('id').primaryKey(),
+
+    /** 关联用户 */
+    userId: integer('user_id')
+      .references(() => users.id)
+      .notNull(),
+
+    /** 交易对，如 BTC/USDT:USDT */
+    symbol: varchar('symbol', {length: 30}).notNull(),
+
+    /** 标签文本 */
+    tag: varchar('tag', {length: 50}).notNull(),
+
+    /** 标签颜色 */
+    color: varchar('color', {length: 7}).default('#3b82f6'),
+
+    createdAt: timestamp('created_at').defaultNow().notNull()
+  },
+  table => ({
+    userSymbolTag: uniqueIndex('idx_st_user_symbol_tag').on(
+      table.userId,
+      table.symbol,
+      table.tag
+    )
+  })
+)
+
+// ═══════════════════════════════════════════
+// 交易日记表
+// ═══════════════════════════════════════════
+export const symbolJournals = pgTable(
+  'symbol_journals',
+  {
+    id: serial('id').primaryKey(),
+
+    /** 关联用户 */
+    userId: integer('user_id')
+      .references(() => users.id)
+      .notNull(),
+
+    /** 交易对 */
+    symbol: varchar('symbol', {length: 30}).notNull(),
+
+    /** 日记日期 YYYY-MM-DD */
+    date: varchar('date', {length: 10}).notNull(),
+
+    /** 标题 */
+    title: varchar('title', {length: 200}).default(''),
+
+    /** 内容 */
+    content: text('content').notNull().default(''),
+
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull()
+  },
+  table => ({
+    userSymbolDateIdx: index('idx_sj_user_symbol_date').on(
+      table.userId,
+      table.symbol,
+      table.date
+    )
+  })
+)

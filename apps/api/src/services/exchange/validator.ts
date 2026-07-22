@@ -9,11 +9,40 @@
  * 支持交易所: Binance, OKX, Bybit, Bitget, Gate.io, MEXC
  */
 
-import ccxt, {Exchange} from 'ccxt'
+import ccxt, {type Exchange} from 'ccxt'
 import {config} from '../../config.js'
 
 // ─── 代理配置 ───
 const proxyOptions = config.HTTPS_PROXY ? {httpsProxy: config.HTTPS_PROXY} : {}
+
+function createExchange(
+  exchangeId: string,
+  credentials: {apiKey: string; apiSecret: string; passphrase?: string}
+): Exchange {
+  const opts: Record<string, any> = {
+    apiKey: credentials.apiKey,
+    secret: credentials.apiSecret,
+    ...proxyOptions
+  }
+  if (credentials.passphrase) opts.password = credentials.passphrase
+
+  switch (exchangeId) {
+    case 'binance':
+      return new ccxt.binance({...opts, options: {defaultType: 'swap'}})
+    case 'okx':
+      return new ccxt.okx(opts)
+    case 'bybit':
+      return new ccxt.bybit(opts)
+    case 'bitget':
+      return new ccxt.bitget(opts)
+    case 'gate':
+      return new ccxt.gate(opts)
+    case 'mexc':
+      return new ccxt.mexc(opts)
+    default:
+      throw new Error(`Unsupported exchange: ${exchangeId}`)
+  }
+}
 
 // ─── 交易所显示名映射 ───
 export const EXCHANGE_DISPLAY: Record<string, string> = {
@@ -43,36 +72,6 @@ export interface ValidationResult {
     canWithdraw: boolean
   }
   error?: string
-}
-
-// ─── CCXT 交易所工厂 ───
-function createExchange(
-  exchangeId: string,
-  credentials: {apiKey: string; apiSecret: string; passphrase?: string}
-): Exchange {
-  const opts: Record<string, any> = {
-    apiKey: credentials.apiKey,
-    secret: credentials.apiSecret,
-    ...proxyOptions
-  }
-  if (credentials.passphrase) opts.password = credentials.passphrase
-
-  switch (exchangeId) {
-    case 'binance':
-      return new ccxt.binance({...opts, options: {defaultType: 'swap'}})
-    case 'okx':
-      return new ccxt.okx(opts)
-    case 'bybit':
-      return new ccxt.bybit(opts)
-    case 'bitget':
-      return new ccxt.bitget(opts)
-    case 'gate':
-      return new ccxt.gate(opts)
-    case 'mexc':
-      return new ccxt.mexc(opts)
-    default:
-      throw new Error(`Unsupported exchange: ${exchangeId}`)
-  }
 }
 
 /**

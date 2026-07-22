@@ -54,30 +54,3 @@ export async function fetchTicker(
     timestamp: ticker.timestamp ?? Date.now()
   }
 }
-
-export async function createOrder(
-  exchangeId: ExchangeId,
-  symbol: string,
-  side: 'buy' | 'sell',
-  type: 'market' | 'limit',
-  amount: number,
-  price?: number
-) {
-  const ex = getExchange(exchangeId)
-  const order = await ex.createOrder(symbol, type, side, amount, price)
-  return order
-}
-
-/**
- * 校验交易所 API Key 的有效性（委托给 validator 模块）
- */
-export async function validateCredentials(
-  exchangeId: string,
-  credentials: {apiKey: string; apiSecret: string}
-): Promise<{valid: boolean; error?: string}> {
-  const {validateExchangeKey} = await import('./exchange/validator.js')
-  const result = await validateExchangeKey(exchangeId, credentials)
-  return {valid: result.valid, error: result.error}
-}
-
-export {getExchange}

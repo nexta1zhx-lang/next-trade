@@ -172,15 +172,5 @@ export const api = {
     if (params.startDate) qs.set('startDate', params.startDate)
     if (params.endDate) qs.set('endDate', params.endDate)
     return fetchApi<any>(`/v1/trades/stats?${qs}`)
-  },
-
-  // ─── V1 资金曲线 ───
-  getEquityCurve(params: {keyId?: number; startDate: string; endDate: string}) {
-    const qs = new URLSearchParams({
-      startDate: params.startDate,
-      endDate: params.endDate
-    })
-    if (params.keyId) qs.set('keyId', String(params.keyId))
-    return fetchApi<any>(`/v1/analytics/equity-curve?${qs}`)
   }
 }

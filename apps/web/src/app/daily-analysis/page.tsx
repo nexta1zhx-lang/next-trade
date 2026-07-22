@@ -9,6 +9,9 @@ import {
   AlertCircle
 } from 'lucide-react'
 import type {DailyAnalysisResult, DailyAnalysisItem} from '@nexttrade/shared'
+import dynamic from 'next/dynamic'
+
+const SymbolDetail = dynamic(() => import('./SymbolDetail'), {ssr: false})
 
 // ─── 昨日 UTC 日期 ───
 function yesterdayUTC(): string {
@@ -62,11 +65,15 @@ function changeBg(v: number): string {
 function RankTable({
   items,
   label,
-  color
+  color,
+  onRowClick,
+  selectedSymbol
 }: {
   items: DailyAnalysisItem[]
   label: string
   color: string
+  onRowClick?: (item: DailyAnalysisItem) => void
+  selectedSymbol?: string | null
 }) {
   if (items.length === 0) {
     return <div className="text-center text-gray-500 py-12">暂无数据</div>
@@ -102,7 +109,12 @@ function RankTable({
           {items.slice(0, 20).map((item, i) => (
             <tr
               key={item.symbol}
-              className="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
+              onClick={() => onRowClick?.(item)}
+              className={`border-b border-gray-800/50 transition-colors cursor-pointer ${
+                selectedSymbol === item.symbol
+                  ? 'bg-primary/10 border-l-2 border-l-primary'
+                  : 'hover:bg-gray-800/30'
+              }`}
             >
               <td className="py-2.5 px-2 text-gray-500">{i + 1}</td>
               <td className="py-2.5 px-2 font-medium">{item.base}</td>
@@ -151,6 +163,7 @@ export default function DailyAnalysisPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('amplitude')
+  const [selectedItem, setSelectedItem] = useState<DailyAnalysisItem | null>(null)
 
   const fetchAnalysis = useCallback(
     async (signal: AbortSignal, isRetry = false) => {
@@ -288,8 +301,19 @@ export default function DailyAnalysisPage() {
               items={currentItems}
               label={currentTab.label}
               color={currentTab.color}
+              onRowClick={setSelectedItem}
+              selectedSymbol={selectedItem?.symbol ?? null}
             />
           </div>
+
+          {/* 币种详情面板 */}
+          {selectedItem && (
+            <SymbolDetail
+              item={selectedItem}
+              selectedDate={date}
+              onClose={() => setSelectedItem(null)}
+            />
+          )}
 
           {/* 数据脚注 */}
           <p className="mt-3 text-xs text-gray-600">

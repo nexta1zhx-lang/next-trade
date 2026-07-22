@@ -20,7 +20,6 @@ import {
   validateExchangeKey,
   getExchangeDisplayName
 } from '../../services/exchange/validator.js'
-import {reconstructHistoricalEquity} from '../../services/sync/historicalReconstruction.js'
 import type {StoredApiKey, ApiKeyDetail, KeyStatus} from '@nexttrade/shared'
 
 const router = new Hono()
@@ -99,21 +98,6 @@ router.post('/', zValidator('json', createSchema), async c => {
     isTestnet,
     createdAt: key.createdAt.toISOString()
   }
-
-  // 异步触发历史数据逆向推演（不阻塞响应）
-  c.executionCtx.waitUntil(
-    reconstructHistoricalEquity(key.id, userId, 90).then(r => {
-      if (r.success) {
-        console.log(
-          `[keys] Historical reconstruction done for key ${key.id}: ${r.snapshotsCreated} snapshots`
-        )
-      } else {
-        console.warn(
-          `[keys] Historical reconstruction skipped for key ${key.id}: ${r.error}`
-        )
-      }
-    })
-  )
 
   return c.json({success: true, data: result}, 201)
 })
