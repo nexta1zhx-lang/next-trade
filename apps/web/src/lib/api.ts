@@ -7,10 +7,17 @@ import type {
 
 // 开发时直连 API 端口（绕过 Next.js proxy 超时限制）
 // 生产环境改为同域 /api 或对应域名
-const API_ORIGIN =
+export const API_ORIGIN: string =
   typeof window !== 'undefined' && window.location.hostname === 'localhost'
     ? 'http://localhost:3001'
     : ''
+
+/** WebSocket 连接地址（与 API 同源，仅协议不同） */
+export const WS_BASE: string =
+  typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'ws://localhost:3001'
+    : ''
+
 const BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
 
 // ─── 全局 401 事件 ───

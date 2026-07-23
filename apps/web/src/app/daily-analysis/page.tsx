@@ -12,7 +12,7 @@ import {
 import type {DailyAnalysisResult, DailyAnalysisItem} from '@nexttrade/shared'
 import type {FavoriteSymbol} from '@nexttrade/shared'
 import dynamic from 'next/dynamic'
-import {authHeaders, getToken} from '@/lib/api'
+import {authHeaders, getToken, API_ORIGIN} from '@/lib/api'
 import {useUserConfig} from '@/hooks/useUserConfig'
 
 const SymbolDetail = dynamic(() => import('./SymbolDetail'), {ssr: false})
@@ -140,9 +140,7 @@ export default function DailyAnalysisPage() {
 
   // ─── SSE 连接 ───
   useEffect(() => {
-    const base =
-      window.location.hostname === 'localhost' ? 'http://localhost:3001' : ''
-    const es = new EventSource(`${base}/api/ticker/stream`)
+    const es = new EventSource(`${API_ORIGIN}/api/ticker/stream`)
 
     es.onmessage = (event: MessageEvent) => {
       try {
@@ -170,9 +168,7 @@ export default function DailyAnalysisPage() {
     }
     setFavLoading(true)
     try {
-      const base =
-        window.location.hostname === 'localhost' ? 'http://localhost:3001' : ''
-      const res = await fetch(`${base}/api/favorites`, {
+      const res = await fetch(`${API_ORIGIN}/api/favorites`, {
         headers: authHeaders()
       })
       const json = await res.json()
@@ -196,19 +192,17 @@ export default function DailyAnalysisPage() {
   const toggleFavorite = useCallback(
     async (item: DailyAnalysisItem) => {
       if (!loggedIn) return
-      const base =
-        window.location.hostname === 'localhost' ? 'http://localhost:3001' : ''
 
       if (favSymbolSet.has(item.symbol)) {
         // 取消收藏
         await fetch(
-          `${base}/api/favorites/${encodeURIComponent(item.symbol)}`,
+          `${API_ORIGIN}/api/favorites/${encodeURIComponent(item.symbol)}`,
           {method: 'DELETE', headers: authHeaders()}
         )
         setFavorites(prev => prev.filter(f => f.symbol !== item.symbol))
       } else {
         // 添加收藏
-        const res = await fetch(`${base}/api/favorites`, {
+        const res = await fetch(`${API_ORIGIN}/api/favorites`, {
           method: 'POST',
           headers: {'Content-Type': 'application/json', ...authHeaders()},
           body: JSON.stringify({
@@ -232,12 +226,8 @@ export default function DailyAnalysisPage() {
       setLoading(true)
       if (!isRetry) setError(null)
       try {
-        const base =
-          window.location.hostname === 'localhost'
-            ? 'http://localhost:3001'
-            : ''
         const res = await fetch(
-          `${base}/api/daily-analysis?date=${date}&minQuoteVolume=${dailyMinQuote}`,
+          `${API_ORIGIN}/api/daily-analysis?date=${date}&minQuoteVolume=${dailyMinQuote}`,
           {signal}
         )
         const json = await res.json()

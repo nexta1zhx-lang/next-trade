@@ -1,12 +1,7 @@
 'use client'
 
 import {useState, useEffect} from 'react'
-import {authHeaders} from '@/lib/api'
-
-const API_BASE =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:3001'
-    : ''
+import {authHeaders, API_ORIGIN} from '@/lib/api'
 
 export interface UserConfig {
   klineMode: 'ws' | 'polling'
@@ -27,7 +22,7 @@ export function useUserConfig(): UserConfig {
 
   useEffect(() => {
     const ctrl = new AbortController()
-    fetch(`${API_BASE}/api/user/config`, {
+    fetch(`${API_ORIGIN}/api/user/config`, {
       headers: authHeaders(),
       signal: ctrl.signal
     })

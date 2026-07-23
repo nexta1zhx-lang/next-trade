@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
       {
         source: '/api/:path*',
         destination: 'http://localhost:3001/api/:path*'
+      },
+      // WebSocket 代理（局域网调试用）
+      {
+        source: '/ws',
+        destination: 'http://localhost:3001/ws'
       }
     ]
   }

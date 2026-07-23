@@ -9,12 +9,7 @@ import {
   Wifi,
   RefreshCw
 } from 'lucide-react'
-import {authHeaders} from '@/lib/api'
-
-const API_BASE =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:3001'
-    : ''
+import {authHeaders, API_ORIGIN} from '@/lib/api'
 
 interface UserConfig {
   klineMode: 'ws' | 'polling'
@@ -32,7 +27,7 @@ export default function SettingsPage() {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/user/config`, {
+      const res = await fetch(`${API_ORIGIN}/api/user/config`, {
         headers: authHeaders()
       })
       const json = await res.json()
@@ -55,7 +50,7 @@ export default function SettingsPage() {
     setError(null)
     setSuccess(false)
     try {
-      const res = await fetch(`${API_BASE}/api/user/config`, {
+      const res = await fetch(`${API_ORIGIN}/api/user/config`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json', ...authHeaders()},
         body: JSON.stringify(config)

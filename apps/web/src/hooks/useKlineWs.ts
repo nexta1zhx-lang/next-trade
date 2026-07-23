@@ -2,6 +2,7 @@
 
 import {useRef, useEffect, useCallback} from 'react'
 import type {ISeriesApi, Time} from 'lightweight-charts'
+import {WS_BASE} from '@/lib/api'
 
 interface KlineMsg {
   e: 'kline'
@@ -16,11 +17,6 @@ interface KlineMsg {
     x: boolean
   }
 }
-
-const API_BASE =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'ws://localhost:3001'
-    : ''
 
 /** 对齐到图表周期边界（毫秒） */
 function alignTime(ts: number, tf: string): number {
@@ -69,7 +65,7 @@ export function useKlineWs(
   const connect = useCallback(() => {
     if (!symbol || !enabled || !seriesRef.current) return
 
-    const url = `${API_BASE}/ws?symbol=${encodeURIComponent(symbol)}`
+    const url = `${WS_BASE}/ws?symbol=${encodeURIComponent(symbol)}`
     const ws = new WebSocket(url)
 
     ws.onopen = () => {

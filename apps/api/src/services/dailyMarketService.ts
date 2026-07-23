@@ -1,8 +1,7 @@
-import ccxt from 'ccxt'
 import {db} from '../db/index.js'
 import {dailyMarketData} from '../db/schema.js'
 import {redis} from './redis.js'
-import {config} from '../config.js'
+import {getBinanceFuture} from './exchange.js'
 
 interface MarketMeta {
   id: string
@@ -70,19 +69,7 @@ function round(n: number): number {
 
 // ─── 从 Binance 抓取全量日线数据 ───
 async function fetchAllDailyOHLCV(date: string): Promise<ComputedMarket[]> {
-  const exchange = new ccxt.binance({
-    enableRateLimit: true,
-    timeout: 30000,
-    options: {defaultType: 'swap'}
-  })
-
-  if (config.HTTPS_PROXY) {
-    process.env.HTTPS_PROXY = config.HTTPS_PROXY
-    process.env.HTTP_PROXY = config.HTTPS_PROXY
-    exchange.httpsProxy = config.HTTPS_PROXY
-  }
-
-  await exchange.loadMarkets()
+  const exchange = await getBinanceFuture()
   const allMarkets = Object.values(exchange.markets) as MarketMeta[]
   const markets = allMarkets.filter(
     m => m.active && m.swap && m.linear && m.quote === 'USDT'

@@ -10,8 +10,8 @@
 
 import WebSocket from 'ws'
 import {HttpsProxyAgent} from 'https-proxy-agent'
-import ccxt from 'ccxt'
 import {config} from '../config.js'
+import {getBinanceFuture} from './exchange.js'
 
 type TickerCallback = (
   tickers: Array<{
@@ -30,18 +30,10 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let subscribers = new Set<TickerCallback>()
 
-/** 一次性通过 REST 拉取全量 ticker 并推给订阅者 */
+/** 一次性通过 REST 拉取全量 ticker 并推给订阅者（复用 exchange.ts 中已缓存 loadMarkets 的实例） */
 async function fetchAllTickers() {
   try {
-    const exchange = new ccxt.binance({
-      enableRateLimit: true,
-      timeout: 30000,
-      options: {defaultType: 'swap'}
-    })
-    if (config.HTTPS_PROXY) {
-      exchange.httpsProxy = config.HTTPS_PROXY
-    }
-    await exchange.loadMarkets()
+    const exchange = await getBinanceFuture()
     const tickers = await exchange.fetchTickers()
     const result: Array<{
       symbol: string
