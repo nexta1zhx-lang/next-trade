@@ -45,9 +45,10 @@ function buildResultFromRows(
   }))
 
   // 按交易量过滤
-  const filtered = minQuoteVolume > 0
-    ? items.filter(i => i.quoteVolume >= minQuoteVolume)
-    : items
+  const filtered =
+    minQuoteVolume > 0
+      ? items.filter(i => i.quoteVolume >= minQuoteVolume)
+      : items
 
   const byAmplitude = [...filtered]
     .sort((a, b) => b.amplitude - a.amplitude)

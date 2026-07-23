@@ -352,8 +352,13 @@ export const userConfig = pgTable('user_config', {
   /** 轮询间隔（毫秒） */
   klineInterval: integer('kline_interval').default(10000).notNull(),
 
-  /** 每日行情最低成交量过滤（USDT） */
-  minQuoteVolume: integer('min_quote_volume').default(20000000).notNull(),
+  /** 全部 Tab 最低成交量过滤（USDT） */
+  allMinQuoteVolume: integer('all_min_quote_volume').default(0).notNull(),
+
+  /** 每日 Tab 最低成交量过滤（USDT） */
+  dailyMinQuoteVolume: integer('daily_min_quote_volume')
+    .default(20000000)
+    .notNull(),
 
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 })
@@ -490,8 +495,11 @@ export const dailyMarketData = pgTable(
     /** 基础币种，如 BTC */
     base: varchar('base', {length: 20}).notNull(),
 
-    /** 开盘价 */
+    /** 开盘价 (UTC 00:00) */
     open: numeric('open', {precision: 20, scale: 8}).notNull(),
+
+    /** 北京时间开盘价 (UTC 16:00 当日 1h K 线开盘) */
+    openCst8: numeric('open_cst8', {precision: 20, scale: 8}),
 
     /** 最高价 */
     high: numeric('high', {precision: 20, scale: 8}).notNull(),

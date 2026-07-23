@@ -69,6 +69,7 @@ export interface DailyAnalysisItem {
   change: number // % ((close - open) / open) * 100
   quoteVolume: number // USDT 成交额
   isDoji: boolean // 十字星标记
+  openCst8?: number // 北京时间开盘价 (UTC 16:00)
 }
 
 // ─── 排行榜 ───

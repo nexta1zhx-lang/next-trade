@@ -175,6 +175,7 @@ async function upsertBatch(items: ComputedMarket[], dateStr: string) {
       rankAmplitude: item.rankAmplitude,
       rankGain: item.rankGain,
       rankLoss: item.rankLoss,
+
       updatedAt: new Date()
     }))
 

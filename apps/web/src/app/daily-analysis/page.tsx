@@ -34,6 +34,32 @@ function fmtVol(n: number): string {
   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
   return fmt(n, 0)
 }
+function fmtPrice(n: number): string {
+  if (n >= 1000) return n.toFixed(2)
+  if (n >= 1) return n.toFixed(4)
+  if (n >= 0.01) return n.toFixed(6)
+  return n.toFixed(8)
+}
+
+/** 稳定币基础币种列表（过滤掉 USDT 永续中的稳定币对） */
+const STABLECOINS = new Set([
+  'USDC',
+  'FDUSD',
+  'USDP',
+  'DAI',
+  'TUSD',
+  'BUSD',
+  'GUSD',
+  'SUSD',
+  'LUSD',
+  'FRAX',
+  'MIM',
+  'ALUSD',
+  'EURS',
+  'CEUR',
+  'USTC',
+  'USDN'
+])
 
 /** SSE ticker 数据类型 */
 interface TickerData {
@@ -51,7 +77,9 @@ type AllSortKey = 'price' | 'change' | 'quoteVol' | 'base'
 
 export default function DailyAnalysisPage() {
   const userConfig = useUserConfig()
-  const minQuoteVolume = userConfig.minQuoteVolume || 20000000
+  const dailyMinQuote = userConfig.dailyMinQuoteVolume || 20000000
+  const allMinQuote = userConfig.allMinQuoteVolume ?? 0
+
   const [date, setDate] = useState(yesterdayUTC())
   const [clock, setClock] = useState('')
 
@@ -73,7 +101,6 @@ export default function DailyAnalysisPage() {
     null
   )
 
-  // ─── 搜索 & Tab ───
   const [searchQuery, setSearchQuery] = useState('')
   const [activeTab, setActiveTab] = useState<'daily' | 'all' | 'fav'>('daily')
 
@@ -210,7 +237,7 @@ export default function DailyAnalysisPage() {
             ? 'http://localhost:3001'
             : ''
         const res = await fetch(
-          `${base}/api/daily-analysis?date=${date}&minQuoteVolume=${minQuoteVolume}`,
+          `${base}/api/daily-analysis?date=${date}&minQuoteVolume=${dailyMinQuote}`,
           {signal}
         )
         const json = await res.json()
@@ -224,7 +251,7 @@ export default function DailyAnalysisPage() {
         setLoading(false)
       }
     },
-    [date]
+    [date, dailyMinQuote]
   )
 
   useEffect(() => {
@@ -410,12 +437,7 @@ export default function DailyAnalysisPage() {
 
               {/* 自选 Tab 列头 */}
               {activeTab === 'fav' && (
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0">
-                  <span className="w-12 shrink-0 text-center">日期</span>
-                  <span className="flex-1">币种</span>
-                  <span className="w-[88px] text-right">价格/量</span>
-                  <span className="w-[60px] text-right">涨跌幅</span>
-                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0" />
               )}
 
               {/* 列表内容 */}
@@ -498,42 +520,59 @@ export default function DailyAnalysisPage() {
                 {activeTab === 'all' && (
                   <>
                     {(() => {
-                      const items = data?.allItems ?? []
-                      if (items.length === 0)
+                      const tickerKeys = Object.keys(tickerMap)
+                      if (tickerKeys.length === 0)
                         return (
                           <div className="text-center text-gray-500 py-12 text-xs">
-                            暂无数据
+                            加载中...
                           </div>
                         )
+                      // 只保留 USDT 永续（过滤稳定币）
+                      const entries = tickerKeys
+                        .filter(s => {
+                          if (!s.endsWith('USDT')) return false
+                          const base = s.replace('USDT', '')
+                          return !STABLECOINS.has(base)
+                        })
+                        .map(s => ({
+                          binanceSymbol: s,
+                          base: s.replace('USDT', ''),
+                          ticker: tickerMap[s]
+                        }))
+                      // 按交易量过滤
+                      const volumeFiltered =
+                        allMinQuote > 0
+                          ? entries.filter(
+                              e => Number(e.ticker.quoteVol) >= allMinQuote
+                            )
+                          : entries
                       const filtered = searchQuery
-                        ? items.filter(item =>
-                            item.base
+                        ? volumeFiltered.filter(e =>
+                            e.base
                               .toLowerCase()
                               .includes(searchQuery.toLowerCase())
                           )
-                        : items
+                        : volumeFiltered
                       // 排序
                       const sorted = [...filtered].sort((a, b) => {
-                        const ta = tickerMap[toBinanceSymbol(a.symbol)]
-                        const tb = tickerMap[toBinanceSymbol(b.symbol)]
                         const mul = allSortAsc ? 1 : -1
                         switch (allSortKey) {
                           case 'price':
                             return (
-                              (Number(ta?.price ?? 0) -
-                                Number(tb?.price ?? 0)) *
+                              (Number(a.ticker.price) -
+                                Number(b.ticker.price)) *
                               mul
                             )
                           case 'change':
                             return (
-                              (Number(ta?.change ?? 0) -
-                                Number(tb?.change ?? 0)) *
+                              (Number(a.ticker.change) -
+                                Number(b.ticker.change)) *
                               mul
                             )
                           case 'quoteVol':
                             return (
-                              (Number(ta?.quoteVol ?? 0) -
-                                Number(tb?.quoteVol ?? 0)) *
+                              (Number(a.ticker.quoteVol) -
+                                Number(b.ticker.quoteVol)) *
                               mul
                             )
                           case 'base':
@@ -547,19 +586,41 @@ export default function DailyAnalysisPage() {
                           暂无数据
                         </div>
                       ) : (
-                        sorted.map(item => {
-                          const ticker = tickerMap[toBinanceSymbol(item.symbol)]
-                          const sel = selectedItem?.symbol === item.symbol
-                          const isFav = favSymbolSet.has(item.symbol)
+                        sorted.map(entry => {
+                          const {binanceSymbol, base, ticker} = entry
+                          const fullSymbol = `${base}/USDT:USDT`
+                          const sel = selectedItem?.symbol === fullSymbol
+                          const isFav = favSymbolSet.has(fullSymbol)
+                          // 点击时尝试从 data 找 item，否则用一个最小对象
+                          const findOrCreateItem = () => {
+                            const found = data?.allItems?.find(
+                              i => i.symbol === fullSymbol
+                            )
+                            if (found) return found
+                            return {
+                              symbol: fullSymbol,
+                              base,
+                              open: Number(ticker.open),
+                              high: Number(ticker.high),
+                              low: Number(ticker.low),
+                              close: Number(ticker.price),
+                              amplitude: 0,
+                              change: Number(ticker.change),
+                              quoteVolume: Number(ticker.quoteVol),
+                              isDoji: false
+                            }
+                          }
                           return (
                             <div
-                              key={item.symbol}
+                              key={binanceSymbol}
                               className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
                                 sel
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
                               }`}
-                              onClick={() => setSelectedItem(item)}
+                              onClick={() =>
+                                setSelectedItem(findOrCreateItem())
+                              }
                             >
                               {/* 收藏图标 */}
                               <span
@@ -567,7 +628,7 @@ export default function DailyAnalysisPage() {
                                 onClick={e => {
                                   if (!loggedIn) return
                                   e.stopPropagation()
-                                  toggleFavorite(item)
+                                  toggleFavorite(findOrCreateItem())
                                 }}
                               >
                                 {loggedIn && isFav ? (
@@ -581,33 +642,26 @@ export default function DailyAnalysisPage() {
                               {/* 币种 + 量 */}
                               <span className="flex-1 flex flex-col min-w-0 leading-tight">
                                 <span className="font-medium text-gray-200 truncate">
-                                  {item.base}
+                                  {base}
                                 </span>
                                 <span className="text-gray-500 truncate text-[10px]">
-                                  {ticker
-                                    ? fmtVol(Number(ticker.quoteVol))
-                                    : '--'}
+                                  {fmtVol(Number(ticker.quoteVol))}
                                 </span>
                               </span>
                               {/* 价格 + 涨跌幅 */}
                               <span className="flex flex-col items-end leading-tight shrink-0 min-w-[88px]">
                                 <span className="font-mono tabular-nums text-gray-200">
-                                  {ticker
-                                    ? Number(ticker.price).toFixed(2)
-                                    : '--'}
+                                  {fmtPrice(Number(ticker.price))}
                                 </span>
                                 <span
                                   className={`text-[10px] ${
-                                    ticker
-                                      ? Number(ticker.change) >= 0
-                                        ? 'text-emerald-400'
-                                        : 'text-red-400'
-                                      : 'text-gray-600'
+                                    Number(ticker.change) >= 0
+                                      ? 'text-emerald-400'
+                                      : 'text-red-400'
                                   }`}
                                 >
-                                  {ticker
-                                    ? `${Number(ticker.change) >= 0 ? '+' : ''}${Number(ticker.change).toFixed(2)}%`
-                                    : '--'}
+                                  {Number(ticker.change) >= 0 ? '+' : ''}
+                                  {Number(ticker.change).toFixed(2)}%
                                 </span>
                               </span>
                             </div>
@@ -637,63 +691,98 @@ export default function DailyAnalysisPage() {
                                 .includes(searchQuery.toLowerCase())
                             )
                           : favorites
-                        return filtered.map(fav => {
-                          const ticker = tickerMap[toBinanceSymbol(fav.symbol)]
-                          const sel = selectedItem?.symbol === fav.symbol
-                          return (
-                            <div
-                              key={fav.symbol}
-                              onClick={() => {
-                                const item = data.rankAmplitude.find(
-                                  i => i.symbol === fav.symbol
-                                )
-                                if (item) setSelectedItem(item)
-                              }}
-                              className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
-                                sel
-                                  ? 'bg-primary/10 border-l-2 border-l-primary'
-                                  : 'hover:bg-gray-800/30'
-                              }`}
-                            >
-                              <span className="w-12 shrink-0 text-center text-gray-500 text-[10px]">
-                                {fav.date.slice(5)}
-                              </span>
-                              <span className="flex-1 flex flex-col min-w-0 leading-tight">
-                                <span className="font-medium text-gray-200 truncate">
-                                  {fav.base}
-                                </span>
-                                <span className="text-gray-500 truncate text-[10px]">
-                                  /USDT
-                                </span>
-                              </span>
-                              <span className="w-[88px] flex flex-col items-end leading-tight shrink-0">
-                                <span className="font-mono tabular-nums text-gray-200">
-                                  {ticker
-                                    ? Number(ticker.price).toFixed(2)
-                                    : '--'}
-                                </span>
-                                <span className="text-gray-500 text-[10px]">
-                                  {ticker
-                                    ? fmtVol(Number(ticker.quoteVol))
-                                    : '--'}
-                                </span>
-                              </span>
-                              <span
-                                className={`w-[60px] text-right font-medium ${
-                                  ticker
-                                    ? Number(ticker.change) >= 0
-                                      ? 'text-emerald-400'
-                                      : 'text-red-400'
-                                    : 'text-gray-600'
-                                }`}
-                              >
-                                {ticker
-                                  ? `${Number(ticker.change) >= 0 ? '+' : ''}${Number(ticker.change).toFixed(2)}%`
-                                  : '--'}
-                              </span>
+                        // 按日期分组
+                        const groups: Record<string, typeof filtered> = {}
+                        for (const f of filtered) {
+                          if (!groups[f.date]) groups[f.date] = []
+                          groups[f.date].push(f)
+                        }
+                        const sortedDates = Object.keys(groups).sort((a, b) =>
+                          b.localeCompare(a)
+                        )
+                        return sortedDates.map(date => (
+                          <div key={date}>
+                            {/* 日期分组标题 */}
+                            <div className="sticky top-0 z-10 bg-[#18181b] px-3 py-1.5 text-[10px] text-gray-500 font-medium border-b border-gray-800/50">
+                              {date}
                             </div>
-                          )
-                        })
+                            {groups[date].map(fav => {
+                              const ticker =
+                                tickerMap[toBinanceSymbol(fav.symbol)]
+                              const sel = selectedItem?.symbol === fav.symbol
+                              return (
+                                <div
+                                  key={fav.symbol}
+                                  onClick={() => {
+                                    const item = data?.rankAmplitude.find(
+                                      i => i.symbol === fav.symbol
+                                    )
+                                    if (item) setSelectedItem(item)
+                                  }}
+                                  className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
+                                    sel
+                                      ? 'bg-primary/10 border-l-2 border-l-primary'
+                                      : 'hover:bg-gray-800/30'
+                                  }`}
+                                >
+                                  <span
+                                    className="w-5 shrink-0 text-center cursor-pointer"
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      const item = {
+                                        symbol: fav.symbol,
+                                        base: fav.base,
+                                        open: 0,
+                                        high: 0,
+                                        low: 0,
+                                        close: 0,
+                                        amplitude: 0,
+                                        change: 0,
+                                        quoteVolume: 0,
+                                        isDoji: false
+                                      }
+                                      toggleFavorite(item)
+                                    }}
+                                  >
+                                    <Star className="w-3 h-3 text-yellow-400 fill-yellow-400 mx-auto hover:opacity-70 transition-opacity" />
+                                  </span>
+                                  {/* 币种 + 量 */}
+                                  <span className="flex-1 flex flex-col min-w-0 leading-tight">
+                                    <span className="font-medium text-gray-200 truncate">
+                                      {fav.base}
+                                    </span>
+                                    <span className="text-gray-500 truncate text-[10px]">
+                                      {ticker
+                                        ? fmtVol(Number(ticker.quoteVol))
+                                        : '--'}
+                                    </span>
+                                  </span>
+                                  {/* 价格 + 涨跌幅 */}
+                                  <span className="flex flex-col items-end leading-tight shrink-0 min-w-[88px]">
+                                    <span className="font-mono tabular-nums text-gray-200">
+                                      {ticker
+                                        ? fmtPrice(Number(ticker.price))
+                                        : '--'}
+                                    </span>
+                                    <span
+                                      className={`text-[10px] ${
+                                        ticker
+                                          ? Number(ticker.change) >= 0
+                                            ? 'text-emerald-400'
+                                            : 'text-red-400'
+                                          : 'text-gray-600'
+                                      }`}
+                                    >
+                                      {ticker
+                                        ? `${Number(ticker.change) >= 0 ? '+' : ''}${Number(ticker.change).toFixed(2)}%`
+                                        : '--'}
+                                    </span>
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))
                       })()
                     )}
                   </>
@@ -702,16 +791,30 @@ export default function DailyAnalysisPage() {
 
               {/* Footer */}
               {activeTab === 'daily' && (
-                <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 flex gap-3 shrink-0">
+                <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 flex gap-2 shrink-0">
                   <span>共 {data.totalSymbols} 个</span>
                   <span>筛选 {data.filteredCount} 个</span>
+                  <span className="text-gray-500">
+                    ≥ {(dailyMinQuote / 1000000).toFixed(0)}M
+                  </span>
                 </div>
               )}
               {activeTab === 'all' && (
-                <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 shrink-0">
+                <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 flex gap-2 shrink-0">
                   <span>
-                    全部 {data?.allItems?.length ?? data?.filteredCount ?? 0} 个
+                    {
+                      Object.keys(tickerMap).filter(s => {
+                        if (!s.endsWith('USDT')) return false
+                        return !STABLECOINS.has(s.replace('USDT', ''))
+                      }).length
+                    }{' '}
+                    个
                   </span>
+                  {allMinQuote > 0 && (
+                    <span className="text-gray-500">
+                      ≥ {(allMinQuote / 1000000).toFixed(0)}M
+                    </span>
+                  )}
                 </div>
               )}
               {activeTab === 'fav' && (

@@ -5,7 +5,7 @@
  * 推送给前端。无需 API Key，完全免费。
  *
  * 支持的交易所:
- *   - Binance: wss://stream.binance.com:9443/ws/!miniTicker@arr
+ *   - Binance 合约: wss://fstream.binance.com/ws/!miniTicker@arr
  */
 
 import WebSocket from 'ws'
@@ -96,7 +96,7 @@ export function startBinanceTicker() {
       ? {agent: new HttpsProxyAgent(config.HTTPS_PROXY)}
       : undefined
     ws = new WebSocket(
-      'wss://stream.binance.com:9443/ws/!miniTicker@arr',
+      'wss://fstream.binance.com/ws/!miniTicker@arr',
       wsOptions
     )
 

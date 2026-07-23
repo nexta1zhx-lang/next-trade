@@ -18,7 +18,8 @@ const getUserId = (c: Context) => (c as any).get('userId') as number
 const defaults = {
   klineMode: 'polling' as const,
   klineInterval: 10000,
-  tickerInterval: 4000
+  allMinQuoteVolume: 0,
+  dailyMinQuoteVolume: 20000000
 }
 
 // GET /api/user/config
@@ -40,7 +41,8 @@ router.get('/', async c => {
 const updateSchema = z.object({
   klineMode: z.enum(['ws', 'polling']).optional(),
   klineInterval: z.number().int().min(1000).max(300000).optional(),
-  minQuoteVolume: z.number().int().min(0).max(1000000000).optional()
+  allMinQuoteVolume: z.number().int().min(0).max(200000000).optional(),
+  dailyMinQuoteVolume: z.number().int().min(0).max(200000000).optional()
 })
 
 // PUT /api/user/config

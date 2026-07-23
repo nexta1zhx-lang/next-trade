@@ -19,7 +19,8 @@ const API_BASE =
 interface UserConfig {
   klineMode: 'ws' | 'polling'
   klineInterval: number
-  minQuoteVolume: number
+  allMinQuoteVolume: number
+  dailyMinQuoteVolume: number
 }
 
 export default function SettingsPage() {
@@ -220,57 +221,134 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* 最低成交额过滤 */}
+        {/* ─── 币种筛选设置 ─── */}
         <div className="bg-card border border-border rounded-xl p-5">
-          <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-foreground mb-4 flex items-center gap-2">
+            <Settings2 className="w-4 h-4 text-primary" />
+            币种筛选设置
+          </h3>
+          <div className="space-y-5">
+            {/* 全部 Tab 过滤 */}
             <div>
-              <label className="text-sm font-medium text-foreground">
-                最低日成交额
-              </label>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                每日行情列表只显示成交额大于此值的币种
-              </p>
-            </div>
-            <div className="flex items-center gap-1">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <label className="text-sm font-medium text-foreground">
+                    全部 Tab 最低成交额
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    全部标签页中显示的币种最低 USDT 成交额
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={(config?.allMinQuoteVolume ?? 0) / 1000000}
+                    min={0}
+                    max={200}
+                    step={1}
+                    onChange={e =>
+                      setConfig(prev =>
+                        prev
+                          ? {
+                              ...prev,
+                              allMinQuoteVolume:
+                                Number(e.target.value) * 1000000
+                            }
+                          : null
+                      )
+                    }
+                    className="w-20 bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-right
+                               font-mono tabular-nums text-foreground focus:outline-none focus:border-primary
+                               [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                               [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="text-sm text-muted-foreground">M</span>
+                </div>
+              </div>
               <input
-                type="number"
-                value={(config?.minQuoteVolume ?? 20000000) / 1000000}
+                type="range"
+                value={(config?.allMinQuoteVolume ?? 0) / 1000000}
                 min={0}
-                max={1000}
+                max={200}
                 step={1}
                 onChange={e =>
                   setConfig(prev =>
                     prev
-                      ? {...prev, minQuoteVolume: Number(e.target.value) * 1000000}
+                      ? {
+                          ...prev,
+                          allMinQuoteVolume: Number(e.target.value) * 1000000
+                        }
                       : null
                   )
                 }
-                className="w-20 bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-right
-                           font-mono tabular-nums text-foreground focus:outline-none focus:border-primary
-                           [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
-                           [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
               />
-              <span className="text-sm text-muted-foreground">M</span>
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                <span>0</span>
+                <span>200M</span>
+              </div>
             </div>
-          </div>
-          <input
-            type="range"
-            value={(config?.minQuoteVolume ?? 20000000) / 1000000}
-            min={0}
-            max={1000}
-            step={1}
-            onChange={e =>
-              setConfig(prev =>
-                prev
-                  ? {...prev, minQuoteVolume: Number(e.target.value) * 1000000}
-                  : null
-              )
-            }
-            className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-          />
-          <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-            <span>0</span>
-            <span>1000M</span>
+
+            {/* 每日 Tab 过滤 */}
+            <div className="pt-4 border-t border-border">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <label className="text-sm font-medium text-foreground">
+                    每日 Tab 最低成交额
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    每日行情标签页中显示的币种最低 USDT 成交额
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={(config?.dailyMinQuoteVolume ?? 20000000) / 1000000}
+                    min={0}
+                    max={200}
+                    step={1}
+                    onChange={e =>
+                      setConfig(prev =>
+                        prev
+                          ? {
+                              ...prev,
+                              dailyMinQuoteVolume:
+                                Number(e.target.value) * 1000000
+                            }
+                          : null
+                      )
+                    }
+                    className="w-20 bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-right
+                               font-mono tabular-nums text-foreground focus:outline-none focus:border-primary
+                               [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
+                               [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="text-sm text-muted-foreground">M</span>
+                </div>
+              </div>
+              <input
+                type="range"
+                value={(config?.dailyMinQuoteVolume ?? 20000000) / 1000000}
+                min={0}
+                max={200}
+                step={1}
+                onChange={e =>
+                  setConfig(prev =>
+                    prev
+                      ? {
+                          ...prev,
+                          dailyMinQuoteVolume: Number(e.target.value) * 1000000
+                        }
+                      : null
+                  )
+                }
+                className="w-full h-1 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                <span>0</span>
+                <span>200M</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

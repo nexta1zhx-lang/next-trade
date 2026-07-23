@@ -11,10 +11,16 @@ const API_BASE =
 export interface UserConfig {
   klineMode: 'ws' | 'polling'
   klineInterval: number
-  minQuoteVolume: number
+  allMinQuoteVolume: number
+  dailyMinQuoteVolume: number
 }
 
-const defaults: UserConfig = {klineMode: 'polling', klineInterval: 10000, minQuoteVolume: 20000000}
+const defaults: UserConfig = {
+  klineMode: 'polling',
+  klineInterval: 10000,
+  allMinQuoteVolume: 0,
+  dailyMinQuoteVolume: 20000000
+}
 
 export function useUserConfig(): UserConfig {
   const [config, setConfig] = useState<UserConfig>(defaults)
