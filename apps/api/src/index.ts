@@ -8,13 +8,13 @@ import {logger} from 'hono/logger'
 import cron from 'node-cron'
 import {config} from './config.js'
 import {redis} from './services/redis.js'
-import {tickerRouter} from './routes/ticker.js'
 import {dailyAnalysisRouter} from './routes/daily-analysis.js'
 import {authRouter} from './routes/auth.js'
 import {symbolsRouter} from './routes/symbols.js'
 import {v1KeysRouter} from './routes/v1/keys.js'
 import {v1TradesRouter} from './routes/v1/trades.js'
 import {userConfigRouter} from './routes/user-config.js'
+import {favoritesRouter} from './routes/favorites.js'
 import {authMiddleware} from './middleware/auth.js'
 import {collectAndStore} from './services/dailyMarketService.js'
 import {stream} from 'hono/streaming'
@@ -38,7 +38,6 @@ app.onError((err, c) => {
 app.get('/health', c => c.json({status: 'ok', timestamp: Date.now()}))
 
 // ─── 路由 ───
-app.route('/api/ticker', tickerRouter)
 app.route('/api/daily-analysis', dailyAnalysisRouter)
 
 // ─── 认证路由（公开，带 IP 限流防暴破） ───
@@ -62,6 +61,9 @@ app.use('/api/v1/analytics/*', authMiddleware)
 
 // ─── 用户配置路由 ───
 app.route('/api/user/config', userConfigRouter)
+
+// ─── 自选币种路由（需登录） ───
+app.route('/api/favorites', favoritesRouter)
 
 // ─── SSE 行情推送（用于实时盯盘） ───
 app.get('/api/ticker/stream', async c => {

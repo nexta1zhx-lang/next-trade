@@ -77,6 +77,7 @@ export interface DailyAnalysisResult {
   cachedAt: number // 缓存时间戳
   totalSymbols: number // 原始总数
   filteredCount: number // 过滤后数量
+  allItems: DailyAnalysisItem[] // 全量币种（含过滤后所有，用于实时行情）
   rankAmplitude: DailyAnalysisItem[] // 振幅榜 TOP 50
   rankGain: DailyAnalysisItem[] // 涨幅榜 TOP 50
   rankLoss: DailyAnalysisItem[] // 跌幅榜 TOP 50
@@ -259,4 +260,19 @@ export interface SymbolReviewSave {
   title?: string
   content: string
   tags?: Array<{tag: string; color: string}>
+}
+
+// ─── 自选币种 ───
+export interface FavoriteSymbol {
+  id: number
+  symbol: string
+  base: string
+  date: string // 加入时的每日行情日期 YYYY-MM-DD
+  createdAt: string
+}
+
+export interface FavoriteSymbolCreate {
+  symbol: string
+  base: string
+  date: string
 }

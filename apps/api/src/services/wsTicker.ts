@@ -9,13 +9,18 @@
  */
 
 import WebSocket from 'ws'
+import {HttpsProxyAgent} from 'https-proxy-agent'
+import ccxt from 'ccxt'
+import {config} from '../config.js'
 
 type TickerCallback = (
   tickers: Array<{
     symbol: string
     price: string
+    open: string
     change: string
     volume: string
+    quoteVol: string
     high: string
     low: string
   }>
@@ -25,12 +30,75 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let subscribers = new Set<TickerCallback>()
 
+/** 一次性通过 REST 拉取全量 ticker 并推给订阅者 */
+async function fetchAllTickers() {
+  try {
+    const exchange = new ccxt.binance({
+      enableRateLimit: true,
+      timeout: 30000,
+      options: {defaultType: 'swap'}
+    })
+    if (config.HTTPS_PROXY) {
+      exchange.httpsProxy = config.HTTPS_PROXY
+    }
+    await exchange.loadMarkets()
+    const tickers = await exchange.fetchTickers()
+    const result: Array<{
+      symbol: string
+      price: string
+      open: string
+      change: string
+      volume: string
+      quoteVol: string
+      high: string
+      low: string
+    }> = []
+
+    for (const [symbol, t] of Object.entries(tickers)) {
+      if (!t.last || !t.open) continue
+      // 只保留 USDT 永续 (symbol 格式如 BTC/USDT:USDT)
+      if (!symbol.endsWith('/USDT:USDT')) continue
+      const change = t.open > 0 ? ((t.last - t.open) / t.open) * 100 : 0
+      result.push({
+        symbol: symbol.replace('/USDT:USDT', 'USDT'),
+        price: t.last.toFixed(8),
+        open: t.open.toFixed(8),
+        change: change.toFixed(2),
+        volume: (t.baseVolume ?? 0).toFixed(2),
+        quoteVol: (t.quoteVolume ?? 0).toFixed(2),
+        high: (t.high ?? 0).toFixed(8),
+        low: (t.low ?? 0).toFixed(8)
+      })
+    }
+
+    if (result.length > 0) {
+      console.log(`[wsTicker] REST 初始拉取 ${result.length} 个币种`)
+      for (const cb of subscribers) {
+        try {
+          cb(result)
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.error('[wsTicker] REST 初始拉取失败:', (err as Error).message)
+  }
+}
+
 /** 启动 Binance 迷你 ticker 流 */
 export function startBinanceTicker() {
   if (ws) return // 已连接
 
+  // 先 REST 拉取全量
+  fetchAllTickers()
+
   const connect = () => {
-    ws = new WebSocket('wss://stream.binance.com:9443/ws/!miniTicker@arr')
+    const wsOptions = config.HTTPS_PROXY
+      ? {agent: new HttpsProxyAgent(config.HTTPS_PROXY)}
+      : undefined
+    ws = new WebSocket(
+      'wss://stream.binance.com:9443/ws/!miniTicker@arr',
+      wsOptions
+    )
 
     ws.on('open', () => {
       console.log('[wsTicker] Binance WS connected')
@@ -43,21 +111,28 @@ export function startBinanceTicker() {
           E: number
           s: string
           c: string
-          v: string
+          o: string
           h: string
           l: string
-          p: string
-          P: string
+          v: string
+          q: string
         }> = JSON.parse(data.toString())
 
-        const tickers = raw.map(t => ({
-          symbol: t.s,
-          price: t.c,
-          change: t.p,
-          volume: t.v,
-          high: t.h,
-          low: t.l
-        }))
+        const tickers = raw.map(t => {
+          const price = Number(t.c)
+          const open = Number(t.o)
+          const change = open > 0 ? ((price - open) / open) * 100 : 0
+          return {
+            symbol: t.s,
+            price: t.c,
+            open: t.o,
+            change: change.toFixed(2),
+            volume: t.v,
+            quoteVol: t.q,
+            high: t.h,
+            low: t.l
+          }
+        })
 
         for (const cb of subscribers) {
           try {

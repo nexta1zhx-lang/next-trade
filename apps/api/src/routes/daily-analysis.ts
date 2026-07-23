@@ -28,7 +28,8 @@ const querySchema = z.object({
 // ─── 从 DB 查询并组装结果 ───
 function buildResultFromRows(
   date: string,
-  rows: (typeof dailyMarketData.$inferSelect)[]
+  rows: (typeof dailyMarketData.$inferSelect)[],
+  minQuoteVolume: number
 ): DailyAnalysisResult {
   const items: DailyAnalysisItem[] = rows.map(r => ({
     symbol: r.symbol,
@@ -43,7 +44,12 @@ function buildResultFromRows(
     isDoji: r.isDoji ?? false
   }))
 
-  const byAmplitude = [...items]
+  // 按交易量过滤
+  const filtered = minQuoteVolume > 0
+    ? items.filter(i => i.quoteVolume >= minQuoteVolume)
+    : items
+
+  const byAmplitude = [...filtered]
     .sort((a, b) => b.amplitude - a.amplitude)
     .slice(0, 50)
   const byGain = [...items].sort((a, b) => b.change - a.change).slice(0, 50)
@@ -56,11 +62,14 @@ function buildResultFromRows(
     date,
     cachedAt: Date.now(),
     totalSymbols: rows.length,
-    filteredCount: items.length,
+    filteredCount: filtered.length,
+    allItems: filtered,
     rankAmplitude: byAmplitude,
-    rankGain: byGain,
-    rankLoss: byLoss,
-    rankDoji: dojis
+    rankGain: [...filtered].sort((a, b) => b.change - a.change).slice(0, 50),
+    rankLoss: [...filtered].sort((a, b) => a.change - b.change).slice(0, 50),
+    rankDoji: filtered
+      .filter(i => i.isDoji)
+      .sort((a, b) => b.quoteVolume - a.quoteVolume)
   }
 }
 
@@ -93,7 +102,7 @@ router.get('/', zValidator('query', querySchema), async c => {
       )
 
     if (rows.length > 0) {
-      const result = buildResultFromRows(date, rows)
+      const result = buildResultFromRows(date, rows, minQuoteVolume)
       // 写 Redis 缓存
       if (redis.status === 'ready') {
         await redis.set(cacheKey, JSON.stringify(result), 'EX', 3600)
@@ -142,6 +151,7 @@ router.get('/', zValidator('query', querySchema), async c => {
       cachedAt: Date.now(),
       totalSymbols: allData.length,
       filteredCount: items.length,
+      allItems: items,
       rankAmplitude: byAmplitude,
       rankGain: byGain,
       rankLoss: byLoss,

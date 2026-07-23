@@ -352,6 +352,9 @@ export const userConfig = pgTable('user_config', {
   /** 轮询间隔（毫秒） */
   klineInterval: integer('kline_interval').default(10000).notNull(),
 
+  /** 每日行情最低成交量过滤（USDT） */
+  minQuoteVolume: integer('min_quote_volume').default(20000000).notNull(),
+
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 })
 
@@ -575,5 +578,38 @@ export const symbolReviews = pgTable(
       table.date
     ),
     userIdx: index('idx_sr_user').on(table.userId)
+  })
+)
+
+// ═══════════════════════════════════════════
+// 自选币种表（用户收藏的币种）
+// ═══════════════════════════════════════════
+export const favoriteSymbols = pgTable(
+  'favorite_symbols',
+  {
+    id: serial('id').primaryKey(),
+
+    /** 关联用户 */
+    userId: integer('user_id')
+      .references(() => users.id)
+      .notNull(),
+
+    /** 交易对，如 BTC/USDT:USDT */
+    symbol: varchar('symbol', {length: 30}).notNull(),
+
+    /** 基础币种 */
+    base: varchar('base', {length: 20}).notNull(),
+
+    /** 加入时的每日行情日期 YYYY-MM-DD */
+    date: varchar('date', {length: 10}).notNull(),
+
+    createdAt: timestamp('created_at').defaultNow().notNull()
+  },
+  table => ({
+    /** 同一用户同一币种唯一 */
+    userSymbol: uniqueIndex('idx_fav_user_symbol').on(
+      table.userId,
+      table.symbol
+    )
   })
 )

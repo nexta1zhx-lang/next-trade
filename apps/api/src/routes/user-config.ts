@@ -15,7 +15,11 @@ router.use('*', authMiddleware)
 const getUserId = (c: Context) => (c as any).get('userId') as number
 
 /** 默认配置 */
-const defaults = {klineMode: 'polling' as const, klineInterval: 10000}
+const defaults = {
+  klineMode: 'polling' as const,
+  klineInterval: 10000,
+  tickerInterval: 4000
+}
 
 // GET /api/user/config
 router.get('/', async c => {
@@ -35,7 +39,8 @@ router.get('/', async c => {
 
 const updateSchema = z.object({
   klineMode: z.enum(['ws', 'polling']).optional(),
-  klineInterval: z.number().int().min(1000).max(300000).optional()
+  klineInterval: z.number().int().min(1000).max(300000).optional(),
+  minQuoteVolume: z.number().int().min(0).max(1000000000).optional()
 })
 
 // PUT /api/user/config
