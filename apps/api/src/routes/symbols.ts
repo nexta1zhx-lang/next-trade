@@ -3,25 +3,27 @@ import {z} from 'zod'
 import {zValidator} from '@hono/zod-validator'
 import ccxt from 'ccxt'
 import {db} from '../db/index.js'
-import {symbolTags, symbolJournals} from '../db/schema.js'
+import {symbolTags, symbolJournals, symbolReviews} from '../db/schema.js'
 import {eq, and, desc} from 'drizzle-orm'
 import {config} from '../config.js'
 import {redis} from '../services/redis.js'
+import {authMiddleware} from '../middleware/auth.js'
 
-const router = new Hono()
+const router = new Hono<{Variables: {userId: number; username: string}}>()
 
 // ─── 获取 K 线数据 ───
 const klinesSchema = z.object({
   timeframe: z.enum(['15m', '1h', '4h', '1d']).default('1h'),
-  limit: z.coerce.number().int().min(1).max(500).default(200)
+  limit: z.coerce.number().int().min(1).max(1000).default(200),
+  since: z.coerce.number().int().optional()
 })
 
 router.get('/:symbol/klines', zValidator('query', klinesSchema), async c => {
   const symbol = decodeURIComponent(c.req.param('symbol'))
-  const {timeframe, limit} = c.req.valid('query')
+  const {timeframe, limit, since} = c.req.valid('query')
 
   // Redis 缓存（5 分钟）
-  const cacheKey = `klines:${symbol}:${timeframe}:${limit}`
+  const cacheKey = `klines:${symbol}:${timeframe}:${limit}:${since ?? ''}`
   if (redis.status === 'ready') {
     const cached = await redis.get(cacheKey)
     if (cached) {
@@ -43,7 +45,7 @@ router.get('/:symbol/klines', zValidator('query', klinesSchema), async c => {
       exchange.httpsProxy = config.HTTPS_PROXY
     }
 
-    const ohlcv = await exchange.fetchOHLCV(symbol, timeframe, undefined, limit)
+    const ohlcv = await exchange.fetchOHLCV(symbol, timeframe, since, limit)
     const candles = ohlcv.map((c: any) => ({
       time: Math.floor((c[0] ?? 0) / 1000),
       open: c[1] ?? 0,
@@ -199,6 +201,74 @@ router.delete('/:symbol/journals/:id', async c => {
 
   await db.delete(symbolJournals).where(eq(symbolJournals.id, id))
 
+  return c.json({success: true, data: {id}})
+})
+
+// ─── 复盘（合并日记+标签快照，用户隔离） ───
+
+router.get('/:symbol/reviews', authMiddleware, async c => {
+  const symbol = decodeURIComponent(c.req.param('symbol')!)
+  const userId = c.get('userId') as number
+
+  const reviews = await db
+    .select()
+    .from(symbolReviews)
+    .where(
+      and(eq(symbolReviews.symbol, symbol), eq(symbolReviews.userId, userId))
+    )
+    .orderBy(desc(symbolReviews.date))
+
+  return c.json({success: true, data: reviews})
+})
+
+const saveReviewSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD'),
+  title: z.string().max(200).default(''),
+  content: z.string().default(''),
+  tags: z.array(z.object({tag: z.string(), color: z.string()})).default([])
+})
+
+router.post(
+  '/:symbol/reviews',
+  authMiddleware,
+  zValidator('json', saveReviewSchema),
+  async c => {
+    const symbol = decodeURIComponent(c.req.param('symbol')!)
+    const userId = c.get('userId') as number
+    const {date, title, content, tags} = c.req.valid('json')
+
+    // UPSERT：同一天同一币种同用户只保留一条
+    const [review] = await db
+      .insert(symbolReviews)
+      .values({
+        userId,
+        symbol,
+        date,
+        title: title || '',
+        content: content || '',
+        tags: JSON.stringify(tags)
+      })
+      .onConflictDoUpdate({
+        target: [symbolReviews.symbol, symbolReviews.date],
+        set: {
+          title: title || '',
+          content: content || '',
+          tags: JSON.stringify(tags),
+          updatedAt: new Date()
+        }
+      })
+      .returning()
+
+    return c.json({success: true, data: review})
+  }
+)
+
+router.delete('/:symbol/reviews/:id', authMiddleware, async c => {
+  const id = parseInt(c.req.param('id')!)
+  const userId = c.get('userId') as number
+  await db
+    .delete(symbolReviews)
+    .where(and(eq(symbolReviews.id, id), eq(symbolReviews.userId, userId)))
   return c.json({success: true, data: {id}})
 })
 

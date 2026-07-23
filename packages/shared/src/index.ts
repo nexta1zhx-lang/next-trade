@@ -231,3 +231,22 @@ export interface SymbolJournalSave {
   title?: string
   content: string
 }
+
+// ─── 复盘记录（含标签快照） ───
+export interface SymbolReview {
+  id: number
+  symbol: string
+  date: string
+  title: string
+  content: string
+  tags: Array<{tag: string; color: string}>
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SymbolReviewSave {
+  date: string
+  title?: string
+  content: string
+  tags?: Array<{tag: string; color: string}>
+}

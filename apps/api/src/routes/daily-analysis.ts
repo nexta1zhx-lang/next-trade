@@ -1,20 +1,16 @@
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {zValidator} from '@hono/zod-validator'
-import ccxt from 'ccxt'
-import {config} from '../config.js'
+import {db} from '../db/index.js'
+import {dailyMarketData} from '../db/schema.js'
 import {redis} from '../services/redis.js'
+import {
+  fetchAllDailyOHLCV,
+  round,
+  upsertBatch
+} from '../services/dailyMarketService.js'
 import type {DailyAnalysisItem, DailyAnalysisResult} from '@nexttrade/shared'
-
-interface MarketMeta {
-  id: string
-  symbol: string
-  base: string
-  quote: string
-  active: boolean
-  swap: boolean
-  linear: boolean
-}
+import {desc, asc, eq, and} from 'drizzle-orm'
 
 const router = new Hono()
 
@@ -29,41 +25,51 @@ const querySchema = z.object({
   minQuoteVolume: z.coerce.number().positive().default(1_000_000)
 })
 
-// ─── 并发控制器 ───
-async function asyncPool<T, R>(
-  items: T[],
-  concurrency: number,
-  fn: (item: T) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = []
-  const queue = [...items]
+// ─── 从 DB 查询并组装结果 ───
+function buildResultFromRows(
+  date: string,
+  rows: (typeof dailyMarketData.$inferSelect)[]
+): DailyAnalysisResult {
+  const items: DailyAnalysisItem[] = rows.map(r => ({
+    symbol: r.symbol,
+    base: r.base,
+    open: Number(r.open),
+    high: Number(r.high),
+    low: Number(r.low),
+    close: Number(r.close),
+    amplitude: Number(r.amplitude),
+    change: Number(r.change),
+    quoteVolume: Number(r.quoteVolume),
+    isDoji: r.isDoji ?? false
+  }))
 
-  async function worker(): Promise<void> {
-    while (queue.length > 0) {
-      const item = queue.shift()!
-      const idx = items.indexOf(item)
-      try {
-        results[idx] = await fn(item)
-      } catch {
-        // skip failed symbols silently
-      }
-    }
+  const byAmplitude = [...items]
+    .sort((a, b) => b.amplitude - a.amplitude)
+    .slice(0, 50)
+  const byGain = [...items].sort((a, b) => b.change - a.change).slice(0, 50)
+  const byLoss = [...items].sort((a, b) => a.change - b.change).slice(0, 50)
+  const dojis = items
+    .filter(i => i.isDoji)
+    .sort((a, b) => b.quoteVolume - a.quoteVolume)
+
+  return {
+    date,
+    cachedAt: Date.now(),
+    totalSymbols: rows.length,
+    filteredCount: items.length,
+    rankAmplitude: byAmplitude,
+    rankGain: byGain,
+    rankLoss: byLoss,
+    rankDoji: dojis
   }
-
-  const workers = Array.from(
-    {length: Math.min(concurrency, items.length)},
-    () => worker()
-  )
-  await Promise.all(workers)
-  return results.filter(Boolean)
 }
 
 // ─── 主路由 ───
 router.get('/', zValidator('query', querySchema), async c => {
   const {date, minQuoteVolume} = c.req.valid('query')
-
-  // 1. 检查 Redis 缓存 (TTL 3600s)
   const cacheKey = `daily:${date}:${minQuoteVolume}`
+
+  // 1. Redis 缓存命中 → 直接返回
   if (redis.status === 'ready') {
     const cached = await redis.get(cacheKey)
     if (cached) {
@@ -74,123 +80,90 @@ router.get('/', zValidator('query', querySchema), async c => {
     }
   }
 
-  // 2. 初始化 Binance USDT 永续合约交易所
-  const exchange = new ccxt.binance({
-    enableRateLimit: true,
-    timeout: 30000,
-    options: {defaultType: 'future'}
-  })
+  // 2. 尝试从 DB 读取
+  try {
+    const rows = await db
+      .select()
+      .from(dailyMarketData)
+      .where(
+        and(
+          eq(dailyMarketData.date, date),
+          eq(dailyMarketData.exchange, 'binance')
+        )
+      )
 
-  // 加载代理模块（国内必需）
-  if (config.HTTPS_PROXY) {
-    // 方式1: process.env (CCXT 内部可能读取)
-    process.env.HTTPS_PROXY = config.HTTPS_PROXY
-    process.env.HTTP_PROXY = config.HTTPS_PROXY
-    // 方式2: CCXT 原生代理
-    await exchange.loadProxyModules()
-    exchange.httpsProxy = config.HTTPS_PROXY
-    console.log('✓ Proxy configured:', config.HTTPS_PROXY)
-  }
-
-  // 3. 加载市场并过滤 USDT 永续合约
-  console.log('→ Loading markets, proxy:', exchange.httpsProxy)
-  await exchange.loadMarkets()
-  console.log('→ Markets loaded')
-  const allMarkets = Object.values(exchange.markets) as MarketMeta[]
-  const markets = allMarkets.filter(
-    m => m.active && m.swap && m.linear && m.quote === 'USDT'
-  )
-
-  const totalSymbols = markets.length
-  // 只取交易对 id（如 BTCUSDT），CCXT fetchOHLCV 需要 id
-  const symbols = markets.map(m => m.id)
-
-  // 4. 计算目标日期的时间戳范围 (UTC)
-  const dateUtc = new Date(`${date}T00:00:00.000Z`)
-  const since = dateUtc.getTime()
-
-  // 5. 并发抓取 OHLCV (每批 10 个，间隔 50ms)
-  const items: DailyAnalysisItem[] = []
-  const ohlcvResults = await asyncPool(symbols, 10, async (id: string) => {
-    // 加小延迟避免触发 rate limit
-    await new Promise(r => setTimeout(r, 50))
-    try {
-      const ohlcv = await exchange.fetchOHLCV(id, '1d', since, 1)
-      if (!ohlcv || ohlcv.length === 0) return null
-      const candle = ohlcv[0]
-      const open = candle[1] ?? 0
-      const high = candle[2] ?? 0
-      const low = candle[3] ?? 0
-      const close = candle[4] ?? 0
-      const volume = candle[5] ?? 0
-      return {id, open, high, low, close, volume}
-    } catch {
-      return null
+    if (rows.length > 0) {
+      const result = buildResultFromRows(date, rows)
+      // 写 Redis 缓存
+      if (redis.status === 'ready') {
+        await redis.set(cacheKey, JSON.stringify(result), 'EX', 3600)
+      }
+      return c.json({success: true, data: result})
     }
-  })
-
-  // 6. 计算指标 & 过滤
-  for (const raw of ohlcvResults) {
-    if (!raw) continue
-    const {id, open, high, low, close, volume} = raw
-    if (open === 0) continue
-
-    const amplitude = ((high - low) / open) * 100
-    const change = ((close - open) / open) * 100
-    const quoteVolume = close * volume
-    const isDoji = amplitude > 10 && Math.abs(change) < 2
-
-    if (quoteVolume < minQuoteVolume) continue
-
-    // 查找原始 symbol（带 :USDT 后缀，如 BTC/USDT:USDT）
-    const market = markets.find(m => m.id === id)
-    const symbol = market?.symbol ?? `${id}/USDT:USDT`
-
-    items.push({
-      symbol,
-      base: market?.base ?? id.replace('USDT', ''),
-      open,
-      high,
-      low,
-      close,
-      amplitude: round(amplitude),
-      change: round(change),
-      quoteVolume: round(quoteVolume),
-      isDoji
-    })
+  } catch (err) {
+    console.error(
+      '[daily-analysis] DB query failed, falling back to live:',
+      err
+    )
   }
 
-  // 7. 排序取 TOP 50
-  const byAmplitude = [...items]
-    .sort((a, b) => b.amplitude - a.amplitude)
-    .slice(0, 50)
-  const byGain = [...items].sort((a, b) => b.change - a.change).slice(0, 50)
-  const byLoss = [...items].sort((a, b) => a.change - b.change).slice(0, 50)
-  const dojis = items
-    .filter(i => i.isDoji)
-    .sort((a, b) => b.quoteVolume - a.quoteVolume)
+  // 3. DB 无数据 → 实时抓取
+  console.log(`[daily-analysis] 实时抓取 ${date} 的行情数据...`)
+  try {
+    const allData = await fetchAllDailyOHLCV(date)
 
-  const result: DailyAnalysisResult = {
-    date,
-    cachedAt: Date.now(),
-    totalSymbols,
-    filteredCount: items.length,
-    rankAmplitude: byAmplitude,
-    rankGain: byGain,
-    rankLoss: byLoss,
-    rankDoji: dojis
+    // 过滤低成交额
+    const filtered = allData.filter(d => d.quoteVolume >= minQuoteVolume)
+
+    const items: DailyAnalysisItem[] = filtered.map(d => ({
+      symbol: d.symbol,
+      base: d.base,
+      open: d.open,
+      high: d.high,
+      low: d.low,
+      close: d.close,
+      amplitude: d.amplitude,
+      change: d.change,
+      quoteVolume: d.quoteVolume,
+      isDoji: d.isDoji
+    }))
+
+    const byAmplitude = [...items]
+      .sort((a, b) => b.amplitude - a.amplitude)
+      .slice(0, 50)
+    const byGain = [...items].sort((a, b) => b.change - a.change).slice(0, 50)
+    const byLoss = [...items].sort((a, b) => a.change - b.change).slice(0, 50)
+    const dojis = items
+      .filter(i => i.isDoji)
+      .sort((a, b) => b.quoteVolume - a.quoteVolume)
+
+    const result: DailyAnalysisResult = {
+      date,
+      cachedAt: Date.now(),
+      totalSymbols: allData.length,
+      filteredCount: items.length,
+      rankAmplitude: byAmplitude,
+      rankGain: byGain,
+      rankLoss: byLoss,
+      rankDoji: dojis
+    }
+
+    // 先写入 DB，再写 Redis 缓存
+    try {
+      await upsertBatch(allData, date)
+    } catch (err) {
+      console.error('[daily-analysis] DB upsert failed:', err)
+    }
+
+    if (redis.status === 'ready') {
+      await redis.set(cacheKey, JSON.stringify(result), 'EX', 3600)
+    }
+
+    return c.json({success: true, data: result})
+  } catch (err) {
+    console.error('[daily-analysis] Live fetch failed:', err)
+    return c.json({success: false, error: 'Failed to fetch market data'}, 502)
   }
-
-  // 8. 写 Redis 缓存
-  if (redis.status === 'ready') {
-    await redis.set(cacheKey, JSON.stringify(result), 'EX', 3600)
-  }
-
-  return c.json({success: true, data: result})
 })
-
-function round(n: number): number {
-  return Math.round(n * 100) / 100
-}
 
 export {router as dailyAnalysisRouter}

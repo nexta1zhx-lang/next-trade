@@ -20,7 +20,8 @@ import {
   integer,
   boolean,
   uniqueIndex,
-  index
+  index,
+  jsonb
 } from 'drizzle-orm/pg-core'
 
 // ═══════════════════════════════════════════
@@ -416,5 +417,116 @@ export const symbolJournals = pgTable(
       table.symbol,
       table.date
     )
+  })
+)
+
+// ═══════════════════════════════════════════
+// 每日行情数据表（每日 UTC 00:05 定时采集）
+// ═══════════════════════════════════════════
+export const dailyMarketData = pgTable(
+  'daily_market_data',
+  {
+    id: serial('id').primaryKey(),
+
+    /** 日期 YYYY-MM-DD (UTC) */
+    date: varchar('date', {length: 10}).notNull(),
+
+    /** 交易所标识 */
+    exchange: varchar('exchange', {length: 10}).notNull().default('binance'),
+
+    /** 标准化交易对，如 BTC/USDT:USDT */
+    symbol: varchar('symbol', {length: 30}).notNull(),
+
+    /** 基础币种，如 BTC */
+    base: varchar('base', {length: 20}).notNull(),
+
+    /** 开盘价 */
+    open: numeric('open', {precision: 20, scale: 8}).notNull(),
+
+    /** 最高价 */
+    high: numeric('high', {precision: 20, scale: 8}).notNull(),
+
+    /** 最低价 */
+    low: numeric('low', {precision: 20, scale: 8}).notNull(),
+
+    /** 收盘价 */
+    close: numeric('close', {precision: 20, scale: 8}).notNull(),
+
+    /** 振幅 % = (high-low)/open * 100 */
+    amplitude: numeric('amplitude', {precision: 10, scale: 2}).notNull(),
+
+    /** 涨跌幅 % = (close-open)/open * 100 */
+    change: numeric('change', {precision: 10, scale: 2}).notNull(),
+
+    /** USDT 成交额 = close * volume */
+    quoteVolume: numeric('quote_volume', {precision: 24, scale: 2}).notNull(),
+
+    /** 十字星标记 (振幅 > 10% 且 |涨跌幅| < 2%) */
+    isDoji: boolean('is_doji').default(false),
+
+    /** 振幅排名（1=最大） */
+    rankAmplitude: integer('rank_amplitude'),
+
+    /** 涨幅排名（1=最大） */
+    rankGain: integer('rank_gain'),
+
+    /** 跌幅排名（1=最大） */
+    rankLoss: integer('rank_loss'),
+
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull()
+  },
+  table => ({
+    /** 每天同一交易所同一交易对唯一 */
+    dateExSymbol: uniqueIndex('idx_dmd_date_ex_symbol').on(
+      table.date,
+      table.exchange,
+      table.symbol
+    ),
+    /** 按日期+交易所查询加速 */
+    dateExIdx: index('idx_dmd_date_ex').on(table.date, table.exchange),
+    /** 按日期+振幅排序加速 */
+    dateAmpIdx: index('idx_dmd_date_amp').on(table.date, table.amplitude),
+    /** 按日期+涨跌幅排序加速 */
+    dateChangeIdx: index('idx_dmd_date_change').on(table.date, table.change)
+  })
+)
+
+// ═══════════════════════════════════════════
+// 复盘记录表（每个币种每天一条，含笔记+标签快照）
+// ═══════════════════════════════════════════
+export const symbolReviews = pgTable(
+  'symbol_reviews',
+  {
+    id: serial('id').primaryKey(),
+
+    /** 关联用户 */
+    userId: integer('user_id').references(() => users.id),
+
+    /** 交易对，如 BTC/USDT:USDT */
+    symbol: varchar('symbol', {length: 30}).notNull(),
+
+    /** 日期 YYYY-MM-DD */
+    date: varchar('date', {length: 10}).notNull(),
+
+    /** 标题 */
+    title: varchar('title', {length: 200}).default(''),
+
+    /** 内容 */
+    content: text('content').notNull().default(''),
+
+    /** 标签快照 [{"tag":"突破","color":"#22c55e"}] */
+    tags: jsonb('tags').default([]),
+
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull()
+  },
+  table => ({
+    /** 每天每币种一条（按用户隔离） */
+    symbolDateIdx: uniqueIndex('idx_sr_symbol_date').on(
+      table.symbol,
+      table.date
+    ),
+    userIdx: index('idx_sr_user').on(table.userId)
   })
 )

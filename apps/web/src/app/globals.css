@@ -21,6 +21,22 @@ body {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
 @keyframes marquee {
   0% {
     transform: translateX(0);

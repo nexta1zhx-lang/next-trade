@@ -2,6 +2,7 @@ import {serve} from '@hono/node-server'
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import {logger} from 'hono/logger'
+import cron from 'node-cron'
 import {config} from './config.js'
 import {redis} from './services/redis.js'
 import {tickerRouter} from './routes/ticker.js'
@@ -11,6 +12,7 @@ import {symbolsRouter} from './routes/symbols.js'
 import {v1KeysRouter} from './routes/v1/keys.js'
 import {v1TradesRouter} from './routes/v1/trades.js'
 import {authMiddleware} from './middleware/auth.js'
+import {collectAndStore} from './services/dailyMarketService.js'
 const app = new Hono()
 
 // ─── 全局中间件 ───
@@ -65,6 +67,26 @@ async function main() {
   serve({fetch: app.fetch, port: config.PORT}, (info: {port: number}) =>
     console.log(`✓ API running on http://localhost:${info.port}`)
   )
+
+  // 注册每日行情采集定时任务 (UTC 00:05)
+  cron.schedule(
+    '5 0 * * *',
+    async () => {
+      console.log('[Cron] 触发每日行情采集任务...')
+      try {
+        const result = await collectAndStore()
+        console.log(
+          `[Cron] 每日行情采集完成: ${result.date}, ${result.count} 条`
+        )
+      } catch (err) {
+        console.error('[Cron] 每日行情采集失败:', err)
+      }
+    },
+    {
+      timezone: 'UTC'
+    }
+  )
+  console.log('✓ Daily market data cron registered (UTC 00:05)')
 
   // 优雅退出（带强制兜底，确保 tsx watch 能正常重启）
   function shutdown() {

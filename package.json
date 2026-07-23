@@ -5,7 +5,8 @@
     "dev": "pnpm --parallel -r run dev",
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
-    "clean": "pnpm -r run clean"
+    "clean": "pnpm -r run clean",
+    "db:push": "pnpm --filter @nexttrade/api run db:push"
   },
   "engines": {
     "node": ">=20",

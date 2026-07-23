@@ -14,13 +14,19 @@ const API_ORIGIN =
 const BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
 
 // ─── Token 管理 ───
-function getToken(): string | null {
+export function getToken(): string | null {
   if (typeof window === 'undefined') return null
   return localStorage.getItem('nexttrade_token')
 }
 
 function setToken(token: string) {
   localStorage.setItem('nexttrade_token', token)
+}
+
+/** 返回 Authorization header，未登录返回空对象 */
+export function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? {Authorization: `Bearer ${token}`} : {}
 }
 
 export function clearToken() {
