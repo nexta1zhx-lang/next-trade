@@ -185,7 +185,8 @@ export default function DrawingOverlay({
   }, [chart, candleSeries, drawings, hovered])
 
   useEffect(() => {
-    if (!chart) return
+    if (!chart || !candleSeries) return
+    draw()
     const ts = chart.timeScale()
     const h = () => draw()
     ts.subscribeVisibleTimeRangeChange(h)
@@ -194,7 +195,7 @@ export default function DrawingOverlay({
       ts.unsubscribeVisibleTimeRangeChange(h)
       ts.unsubscribeVisibleLogicalRangeChange(h)
     }
-  }, [chart, draw])
+  }, [chart, candleSeries, draw])
   useEffect(() => {
     draw()
   }, [drawings, draw, hovered])

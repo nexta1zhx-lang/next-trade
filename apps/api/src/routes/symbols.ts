@@ -1,7 +1,6 @@
 import {Hono} from 'hono'
 import {z} from 'zod'
 import {zValidator} from '@hono/zod-validator'
-import ccxt from 'ccxt'
 import {db} from '../db/index.js'
 import {
   symbolTags,
@@ -10,9 +9,9 @@ import {
   symbolDrawings
 } from '../db/schema.js'
 import {eq, and, desc} from 'drizzle-orm'
-import {config} from '../config.js'
 import {redis} from '../services/redis.js'
 import {authMiddleware} from '../middleware/auth.js'
+import {getBinanceFuture} from '../services/exchange.js'
 
 const router = new Hono<{Variables: {userId: number; username: string}}>()
 
@@ -37,19 +36,7 @@ router.get('/:symbol/klines', zValidator('query', klinesSchema), async c => {
   }
 
   try {
-    const exchange = new ccxt.binance({
-      enableRateLimit: true,
-      timeout: 30000,
-      options: {defaultType: 'future'}
-    })
-
-    if (config.HTTPS_PROXY) {
-      process.env.HTTPS_PROXY = config.HTTPS_PROXY
-      process.env.HTTP_PROXY = config.HTTPS_PROXY
-      await exchange.loadProxyModules()
-      exchange.httpsProxy = config.HTTPS_PROXY
-    }
-
+    const exchange = await getBinanceFuture()
     const ohlcv = await exchange.fetchOHLCV(symbol, timeframe, since, limit)
     const candles = ohlcv.map((c: any) => ({
       time: Math.floor((c[0] ?? 0) / 1000),

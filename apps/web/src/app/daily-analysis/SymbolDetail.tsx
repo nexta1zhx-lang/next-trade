@@ -142,7 +142,6 @@ export default function SymbolDetail({
     const fn = () => {
       const hasToken = !!getToken()
       if (hasToken && !loggedIn) {
-        // 刚登录：检查本地数据并同步到云端
         const local = localStorage.getItem(DRAWINGS_KEY)
         if (local) {
           try {
@@ -180,19 +179,24 @@ export default function SymbolDetail({
         loadedRef.current = true
         return
       }
+      const ctrl = new AbortController()
       fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
-        headers: authHeaders()
+        headers: authHeaders(),
+        signal: ctrl.signal
       })
         .then(checkResponse)
         .then(r => r.json())
         .then(d => {
-          if (d.success && Array.isArray(d.data)) setDrawings(d.data)
-          else setDrawings([])
+          if (!ctrl.signal.aborted) {
+            if (d.success && Array.isArray(d.data)) setDrawings(d.data)
+            else setDrawings([])
+          }
         })
-        .catch(() => setDrawings([]))
+        .catch(() => {})
         .finally(() => {
           loadedRef.current = true
         })
+      return () => ctrl.abort()
     } else {
       const saved = localStorage.getItem(DRAWINGS_KEY)
       if (saved) {
@@ -226,15 +230,18 @@ export default function SymbolDetail({
 
   useEffect(() => {
     if (!item.symbol) return
+    const ctrl = new AbortController()
     fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/reviews`, {
-      headers: authHeaders()
+      headers: authHeaders(),
+      signal: ctrl.signal
     })
       .then(checkResponse)
       .then(r => r.json())
       .then(d => {
-        if (d.success) setReviews(d.data)
+        if (!ctrl.signal.aborted && d.success) setReviews(d.data)
       })
       .catch(() => {})
+    return () => ctrl.abort()
   }, [item.symbol])
 
   useEffect(() => {
@@ -542,6 +549,7 @@ export default function SymbolDetail({
           >
             {chartHeight > 0 && (
               <KlineChart
+                key={item.symbol}
                 symbol={item.symbol}
                 timeframe={timeframe}
                 height={chartHeight}
@@ -550,6 +558,7 @@ export default function SymbolDetail({
               />
             )}
             <DrawingOverlay
+              key={`ov-${item.symbol}`}
               chart={chart}
               candleSeries={candleSeries}
               activeTool={activeTool}

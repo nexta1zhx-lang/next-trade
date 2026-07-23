@@ -136,9 +136,24 @@ export default function KlineChart({
         textColor: '#a1a1aa'
       },
       grid: {vertLines: {color: '#27272a'}, horzLines: {color: '#27272a'}},
-      crosshair: {mode: 0},
-      rightPriceScale: {borderColor: '#3f3f46'},
+      crosshair: {
+        mode: 0,
+        vertLine: {labelVisible: false},
+        horzLine: {labelVisible: true, labelBackgroundColor: '#27272a'}
+      },
+      rightPriceScale: {
+        borderColor: '#3f3f46',
+        scaleMargins: {top: 0.1, bottom: 0.15},
+        entireTextOnly: true,
+        minimumWidth: 60
+      },
       localization: {
+        priceFormatter: (price: number) => {
+          if (price >= 1000) return price.toFixed(2)
+          if (price >= 1) return price.toFixed(4)
+          if (price >= 0.01) return price.toFixed(6)
+          return price.toFixed(8)
+        },
         timeFormatter: (time: number) => {
           const d = new Date(time * 1000)
           return d.toLocaleString('zh-CN', {
