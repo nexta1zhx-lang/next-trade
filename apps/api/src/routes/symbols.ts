@@ -3,7 +3,12 @@ import {z} from 'zod'
 import {zValidator} from '@hono/zod-validator'
 import ccxt from 'ccxt'
 import {db} from '../db/index.js'
-import {symbolTags, symbolJournals, symbolReviews} from '../db/schema.js'
+import {
+  symbolTags,
+  symbolJournals,
+  symbolReviews,
+  symbolDrawings
+} from '../db/schema.js'
 import {eq, and, desc} from 'drizzle-orm'
 import {config} from '../config.js'
 import {redis} from '../services/redis.js'
@@ -271,5 +276,57 @@ router.delete('/:symbol/reviews/:id', authMiddleware, async c => {
     .where(and(eq(symbolReviews.id, id), eq(symbolReviews.userId, userId)))
   return c.json({success: true, data: {id}})
 })
+
+// ─── 辅助线 ───
+
+router.get('/:symbol/drawings', authMiddleware, async c => {
+  const symbol = decodeURIComponent(c.req.param('symbol')!)
+  const userId = c.get('userId') as number
+
+  const [row] = await db
+    .select()
+    .from(symbolDrawings)
+    .where(
+      and(eq(symbolDrawings.userId, userId), eq(symbolDrawings.symbol, symbol))
+    )
+    .limit(1)
+
+  return c.json({success: true, data: row?.data ?? []})
+})
+
+const saveDrawingsSchema = z.object({
+  data: z.array(
+    z.object({
+      id: z.string(),
+      type: z.enum(['horizontal', 'trendline', 'vertical']),
+      time1: z.number(),
+      price1: z.number(),
+      time2: z.number().optional(),
+      price2: z.number().optional()
+    })
+  )
+})
+
+router.put(
+  '/:symbol/drawings',
+  authMiddleware,
+  zValidator('json', saveDrawingsSchema),
+  async c => {
+    const symbol = decodeURIComponent(c.req.param('symbol')!)
+    const userId = c.get('userId') as number
+    const {data} = c.req.valid('json')
+
+    const [row] = await db
+      .insert(symbolDrawings)
+      .values({userId, symbol, data: JSON.stringify(data)})
+      .onConflictDoUpdate({
+        target: [symbolDrawings.userId, symbolDrawings.symbol],
+        set: {data: JSON.stringify(data), updatedAt: new Date()}
+      })
+      .returning()
+
+    return c.json({success: true, data: row.data})
+  }
+)
 
 export {router as symbolsRouter}

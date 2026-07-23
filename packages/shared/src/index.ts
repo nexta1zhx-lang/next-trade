@@ -244,6 +244,16 @@ export interface SymbolReview {
   updatedAt: string
 }
 
+// ─── 辅助线 ───
+export interface DrawingLine {
+  id: string
+  type: 'horizontal' | 'trendline' | 'vertical'
+  time1: number
+  price1: number
+  time2?: number
+  price2?: number
+}
+
 export interface SymbolReviewSave {
   date: string
   title?: string

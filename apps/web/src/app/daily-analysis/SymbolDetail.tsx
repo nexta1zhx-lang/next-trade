@@ -34,7 +34,7 @@ const LeftToolbar = dynamic(() => import('@/components/chart/LeftToolbar'), {
 import type {TrendLine} from '@/components/chart/DrawingOverlay'
 import type {DailyAnalysisItem} from '@nexttrade/shared'
 import type {CrosshairInfo} from '@/components/chart/KlineChart'
-import {authHeaders} from '@/lib/api'
+import {authHeaders, checkResponse, getToken} from '@/lib/api'
 
 const TIMEFRAMES = ['15m', '1h', '4h', '1d'] as const
 const PRESET_TAGS = [
@@ -74,7 +74,8 @@ export default function SymbolDetail({
   const [activeTool, setActiveTool] = useState<
     'cursor' | 'horizontal' | 'trendline' | 'vertical'
   >('cursor')
-  const [drawings, setDrawings] = useState<TrendLine[]>([])
+  const [drawings, setDrawings] = useState<TrendLine[] | null>(null)
+  const DRAWINGS_KEY = `drawings:${item.symbol}`
   const [chart, setChart] = useState<IChartApi | null>(null)
   const [candleSeries, setCandleSeries] =
     useState<ISeriesApi<'Candlestick'> | null>(null)
@@ -98,12 +99,137 @@ export default function SymbolDetail({
   const chartAreaRef = useRef<HTMLDivElement>(null)
   const [chartHeight, setChartHeight] = useState(0)
   const [crosshairInfo, setCrosshairInfo] = useState<CrosshairInfo | null>(null)
+  const justSyncedRef = useRef(false)
+  const loadedRef = useRef(false)
+  const [loggedIn, setLoggedIn] = useState(() => !!getToken())
+
+  // 辅助线保存模式: 'local' | 'cloud'
+  const SAVE_MODE_KEY = 'draw_save_mode'
+  const [drawSaveMode, setDrawSaveMode] = useState<'local' | 'cloud'>(() =>
+    typeof window !== 'undefined'
+      ? (localStorage.getItem(SAVE_MODE_KEY) as 'local' | 'cloud') || 'local'
+      : 'local'
+  )
+
+  // 切换保存模式
+  const toggleSaveMode = useCallback(() => {
+    setDrawSaveMode(prev => {
+      if (prev === 'cloud') {
+        localStorage.setItem(SAVE_MODE_KEY, 'local')
+        return 'local'
+      }
+      // 切到云端
+      if (!getToken()) return prev // 未登录不可切
+      const local = localStorage.getItem(DRAWINGS_KEY)
+      if (local) {
+        try {
+          const data = JSON.parse(local)
+          justSyncedRef.current = true
+          fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json', ...authHeaders()},
+            body: JSON.stringify({data})
+          })
+        } catch {}
+      }
+      localStorage.setItem(SAVE_MODE_KEY, 'cloud')
+      return 'cloud'
+    })
+  }, [DRAWINGS_KEY, item.symbol])
+
+  // 监听登录状态变化 → 自动同步本地数据到云端
+  useEffect(() => {
+    const fn = () => {
+      const hasToken = !!getToken()
+      if (hasToken && !loggedIn) {
+        // 刚登录：检查本地数据并同步到云端
+        const local = localStorage.getItem(DRAWINGS_KEY)
+        if (local) {
+          try {
+            const data = JSON.parse(local)
+            fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
+              method: 'PUT',
+              headers: {'Content-Type': 'application/json', ...authHeaders()},
+              body: JSON.stringify({data})
+            })
+            localStorage.setItem(SAVE_MODE_KEY, 'cloud')
+            setDrawSaveMode('cloud')
+          } catch {}
+        }
+      }
+      setLoggedIn(hasToken)
+    }
+    window.addEventListener('storage', fn)
+    window.addEventListener('auth:login', fn)
+    window.addEventListener('auth:logout', fn)
+    return () => {
+      window.removeEventListener('storage', fn)
+      window.removeEventListener('auth:login', fn)
+      window.removeEventListener('auth:logout', fn)
+    }
+  }, [loggedIn, DRAWINGS_KEY, item.symbol])
+
+  const loadedOnceRef = useRef(false)
+
+  // 加载辅助线
+  useEffect(() => {
+    loadedRef.current = false
+    if (drawSaveMode === 'cloud' && getToken()) {
+      if (justSyncedRef.current) {
+        justSyncedRef.current = false
+        loadedRef.current = true
+        return
+      }
+      fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
+        headers: authHeaders()
+      })
+        .then(checkResponse)
+        .then(r => r.json())
+        .then(d => {
+          if (d.success && Array.isArray(d.data)) setDrawings(d.data)
+          else setDrawings([])
+        })
+        .catch(() => setDrawings([]))
+        .finally(() => {
+          loadedRef.current = true
+        })
+    } else {
+      const saved = localStorage.getItem(DRAWINGS_KEY)
+      if (saved) {
+        try {
+          setDrawings(JSON.parse(saved))
+        } catch {}
+      } else {
+        setDrawings([])
+      }
+      loadedRef.current = true
+    }
+  }, [DRAWINGS_KEY, drawSaveMode, item.symbol])
+
+  // 保存辅助线（仅当 drawings 数据实际变化时触发）
+  const saveKeyRef = useRef(DRAWINGS_KEY)
+  saveKeyRef.current = DRAWINGS_KEY
+  useEffect(() => {
+    if (drawings === null || drawings.length === 0) return
+    const key = saveKeyRef.current
+    if (drawSaveMode === 'cloud' && getToken()) {
+      fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json', ...authHeaders()},
+        body: JSON.stringify({data: drawings})
+      }).catch(() => {})
+    } else {
+      localStorage.setItem(key, JSON.stringify(drawings))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawings])
 
   useEffect(() => {
     if (!item.symbol) return
     fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/reviews`, {
       headers: authHeaders()
     })
+      .then(checkResponse)
       .then(r => r.json())
       .then(d => {
         if (d.success) setReviews(d.data)
@@ -138,17 +264,17 @@ export default function SymbolDetail({
   )
 
   const handleAddDrawing = useCallback((line: Omit<TrendLine, 'id'>) => {
-    setDrawings(prev => [...prev, {...line, id: crypto.randomUUID()}])
+    setDrawings(prev => [...(prev ?? []), {...line, id: crypto.randomUUID()}])
     if (line.type !== 'trendline') setActiveTool('cursor')
   }, [])
   const handleDeleteDrawing = useCallback(
-    (id: string) => setDrawings(prev => prev.filter(d => d.id !== id)),
+    (id: string) => setDrawings(prev => (prev ?? []).filter(d => d.id !== id)),
     []
   )
   const handleUpdateDrawing = useCallback(
     (id: string, updates: Partial<Omit<TrendLine, 'id'>>) =>
       setDrawings(prev =>
-        prev.map(d => (d.id === id ? {...d, ...updates} : d))
+        (prev ?? []).map(d => (d.id === id ? {...d, ...updates} : d))
       ),
     []
   )
@@ -165,7 +291,7 @@ export default function SymbolDetail({
       if (price === null) return
       let hitId: string | undefined
       const ts = chart.timeScale()
-      for (const d of drawings) {
+      for (const d of drawings ?? []) {
         if (d.type === 'horizontal') {
           const py = candleSeries.priceToCoordinate(d.price1)
           if (py !== null && Math.abs(y - py) < 10) {
@@ -243,6 +369,7 @@ export default function SymbolDetail({
           })
         }
       )
+      checkResponse(res)
       const data = await res.json()
       if (data.success) {
         setReviews(prev => {
@@ -266,10 +393,13 @@ export default function SymbolDetail({
   const handleDeleteReview = useCallback(
     async (id: number) => {
       setReviews(prev => prev.filter(r => r.id !== id))
-      await fetch(
-        `/api/symbols/${encodeURIComponent(item.symbol)}/reviews/${id}`,
-        {method: 'DELETE', headers: authHeaders()}
-      ).catch(() => {})
+      try {
+        const res = await fetch(
+          `/api/symbols/${encodeURIComponent(item.symbol)}/reviews/${id}`,
+          {method: 'DELETE', headers: authHeaders()}
+        )
+        checkResponse(res)
+      } catch {}
     },
     [item.symbol]
   )
@@ -315,9 +445,35 @@ export default function SymbolDetail({
             {item.change.toFixed(2)}%
           </span>
         </div>
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-300">
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 保存模式 */}
+          <button
+            onClick={toggleSaveMode}
+            disabled={drawSaveMode === 'local' && !getToken()}
+            title={
+              !getToken() && drawSaveMode === 'local'
+                ? '登录后可开启云端保存'
+                : drawSaveMode === 'cloud'
+                  ? '云端保存'
+                  : '本地保存'
+            }
+            className={`text-[10px] px-2 py-1 rounded-md transition-colors font-medium ${
+              drawSaveMode === 'cloud'
+                ? 'bg-primary/20 text-primary cursor-pointer hover:bg-primary/30'
+                : !getToken()
+                  ? 'text-gray-600 cursor-not-allowed'
+                  : 'text-gray-400 hover:text-gray-300 cursor-pointer'
+            }`}
+          >
+            {drawSaveMode === 'cloud' ? '云' : '本地'}
+          </button>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-300"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* 图表区 */}
@@ -377,7 +533,7 @@ export default function SymbolDetail({
             activeTool={activeTool}
             onSelectTool={setActiveTool}
             onClearAll={handleClearAll}
-            hasDrawings={drawings.length > 0}
+            hasDrawings={Array.isArray(drawings) && drawings.length > 0}
           />
           <div
             ref={chartAreaRef}
@@ -397,7 +553,7 @@ export default function SymbolDetail({
               chart={chart}
               candleSeries={candleSeries}
               activeTool={activeTool}
-              drawings={drawings}
+              drawings={drawings ?? []}
               onAddDrawing={handleAddDrawing}
               onDeleteDrawing={handleDeleteDrawing}
               onUpdateDrawing={handleUpdateDrawing}
@@ -471,7 +627,20 @@ export default function SymbolDetail({
       </div>
 
       {/* 复盘区 - 左右布局：新建复盘 | 历史复盘 */}
-      <div className="border-t border-gray-700/30 p-3 flex-1 min-h-0 flex flex-col">
+      <div className="border-t border-gray-700/30 p-3 flex-1 min-h-0 flex flex-col relative">
+        {/* 未登录遮罩 */}
+        {!getToken() && (
+          <div className="absolute inset-0 z-20 bg-[#18181b]/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 rounded-b-xl">
+            <FileText className="w-8 h-8 text-gray-600" />
+            <p className="text-sm text-gray-500">登录后可记录复盘思路</p>
+            <a
+              href="/orders"
+              className="px-4 py-1.5 bg-primary/20 text-primary rounded-lg text-xs hover:bg-primary/30 transition-colors"
+            >
+              去登录
+            </a>
+          </div>
+        )}
         <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1.5 shrink-0">
           <FileText className="w-3.5 h-3.5" /> 复盘 — {selectedDate}
         </h4>

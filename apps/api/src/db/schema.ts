@@ -25,6 +25,36 @@ import {
 } from 'drizzle-orm/pg-core'
 
 // ═══════════════════════════════════════════
+// 辅助线表
+// ═══════════════════════════════════════════
+export const symbolDrawings = pgTable(
+  'symbol_drawings',
+  {
+    id: serial('id').primaryKey(),
+
+    /** 关联用户 */
+    userId: integer('user_id')
+      .references(() => users.id)
+      .notNull(),
+
+    /** 交易对，如 BTC/USDT:USDT */
+    symbol: varchar('symbol', {length: 30}).notNull(),
+
+    /** 辅助线数据 [{id,type,time1,price1,time2?,price2?}] */
+    data: jsonb('data').notNull().default([]),
+
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull()
+  },
+  table => ({
+    userSymbolIdx: uniqueIndex('idx_sd_user_symbol').on(
+      table.userId,
+      table.symbol
+    )
+  })
+)
+
+// ═══════════════════════════════════════════
 // 用户表
 // ═══════════════════════════════════════════
 export const users = pgTable('users', {

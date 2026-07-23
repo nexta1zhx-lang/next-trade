@@ -13,6 +13,17 @@ const API_ORIGIN =
     : ''
 const BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
 
+// ─── 全局 401 事件 ───
+export const UNAUTHORIZED_EVENT = 'auth:unauthorized'
+
+/** 检查响应状态，401 时触发全局事件 */
+export function checkResponse(res: Response): Response {
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT))
+  }
+  return res
+}
+
 // ─── Token 管理 ───
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null
@@ -21,6 +32,7 @@ export function getToken(): string | null {
 
 function setToken(token: string) {
   localStorage.setItem('nexttrade_token', token)
+  window.dispatchEvent(new CustomEvent('auth:login'))
 }
 
 /** 返回 Authorization header，未登录返回空对象 */
@@ -31,6 +43,7 @@ export function authHeaders(): Record<string, string> {
 
 export function clearToken() {
   localStorage.removeItem('nexttrade_token')
+  window.dispatchEvent(new CustomEvent('auth:logout'))
 }
 
 export function getStoredUser(): AuthUser | null {
@@ -61,6 +74,7 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
     ...init
   })
+  checkResponse(res)
   const json: ApiResponse<T> = await res.json()
   if (!json.success) throw new Error(json.error ?? 'API error')
   return json.data as T
