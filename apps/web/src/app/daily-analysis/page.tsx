@@ -29,6 +29,17 @@ const MIN_VOLUME = 20_000_000
 
 export default function DailyAnalysisPage() {
   const [date, setDate] = useState(yesterdayUTC())
+  const [clock, setClock] = useState('')
+
+  useEffect(() => {
+    const tick = () => {
+      const d = new Date()
+      setClock(d.toLocaleTimeString('zh-CN', {hour12: false}))
+    }
+    tick()
+    const timer = setInterval(tick, 1000)
+    return () => clearInterval(timer)
+  }, [])
   const [data, setData] = useState<DailyAnalysisResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -102,12 +113,19 @@ export default function DailyAnalysisPage() {
                          focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark] w-36"
             />
           </div>
-          {loading && (
-            <span className="flex items-center gap-1.5 text-xs text-primary ml-auto">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />{' '}
-              加载中
-            </span>
-          )}
+          <span className="ml-auto flex items-center gap-3">
+            {clock && (
+              <span className="text-xs font-mono tabular-nums text-gray-400">
+                {clock}
+              </span>
+            )}
+            {loading && (
+              <span className="flex items-center gap-1.5 text-xs text-primary">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                加载中
+              </span>
+            )}
+          </span>
         </div>
       </div>
 

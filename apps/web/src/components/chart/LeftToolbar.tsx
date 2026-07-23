@@ -5,10 +5,16 @@ import {
   Minus,
   TrendingUp,
   SeparatorVertical,
+  Ruler,
   Eraser
 } from 'lucide-react'
 
-export type DrawTool = 'cursor' | 'horizontal' | 'trendline' | 'vertical'
+export type DrawTool =
+  | 'cursor'
+  | 'horizontal'
+  | 'trendline'
+  | 'vertical'
+  | 'ruler'
 
 interface LeftToolbarProps {
   activeTool: DrawTool
@@ -22,7 +28,8 @@ const TOOLS: Array<{id: DrawTool; icon: typeof MousePointer2; label: string}> =
     {id: 'cursor', icon: MousePointer2, label: '光标'},
     {id: 'horizontal', icon: Minus, label: '水平线'},
     {id: 'vertical', icon: SeparatorVertical, label: '垂直线'},
-    {id: 'trendline', icon: TrendingUp, label: '趋势线'}
+    {id: 'trendline', icon: TrendingUp, label: '趋势线'},
+    {id: 'ruler', icon: Ruler, label: '尺子'}
   ]
 
 export default function LeftToolbar({

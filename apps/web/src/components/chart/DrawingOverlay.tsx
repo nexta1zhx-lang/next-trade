@@ -15,7 +15,7 @@ export interface TrendLine {
 interface DrawingOverlayProps {
   chart: IChartApi | null
   candleSeries: ISeriesApi<'Candlestick'> | null
-  activeTool: 'cursor' | 'horizontal' | 'trendline' | 'vertical'
+  activeTool: 'cursor' | 'horizontal' | 'trendline' | 'vertical' | 'ruler'
   drawings: TrendLine[]
   onAddDrawing: (line: Omit<TrendLine, 'id'>) => void
   onDeleteDrawing: (id: string) => void
@@ -25,7 +25,7 @@ interface DrawingOverlayProps {
   ) => void
   onClearAll: () => void
   onToolChange?: (
-    tool: 'cursor' | 'horizontal' | 'trendline' | 'vertical'
+    tool: 'cursor' | 'horizontal' | 'trendline' | 'vertical' | 'ruler'
   ) => void
 }
 
@@ -108,6 +108,10 @@ export default function DrawingOverlay({
   } | null>(null)
   const [hovered, setHovered] = useState<TrendLine | null>(null)
   const [hoverPos, setHoverPos] = useState<{x: number; y: number} | null>(null)
+  const [rulerMeasure, setRulerMeasure] = useState<{
+    p1: {time: number; price: number}
+    p2: {time: number; price: number}
+  } | null>(null)
   const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
 
   const draw = useCallback(() => {
@@ -161,8 +165,36 @@ export default function DrawingOverlay({
         ctx.stroke()
       }
     }
+    // ruler 测量线
+    if (activeTool === 'ruler' && p1Ref.current && p2Ref.current) {
+      const x1 = ts.timeToCoordinate(p1Ref.current.time as Time)
+      const y1 = candleSeries.priceToCoordinate(p1Ref.current.price)
+      const x2 = ts.timeToCoordinate(p2Ref.current.time as Time)
+      const y2 = candleSeries.priceToCoordinate(p2Ref.current.price)
+      if (x1 !== null && y1 !== null && x2 !== null && y2 !== null) {
+        // 虚线
+        ctx.beginPath()
+        ctx.moveTo(x1 * dpr, y1 * dpr)
+        ctx.lineTo(x2 * dpr, y2 * dpr)
+        ctx.strokeStyle = '#60a5fa'
+        ctx.lineWidth = 1.5 * dpr
+        ctx.setLineDash([6 * dpr, 4 * dpr])
+        ctx.stroke()
+        ctx.setLineDash([])
+        // 端点圆点
+        ctx.beginPath()
+        ctx.arc(x1 * dpr, y1 * dpr, 4 * dpr, 0, 2 * Math.PI)
+        ctx.fillStyle = '#60a5fa'
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(x2 * dpr, y2 * dpr, 4 * dpr, 0, 2 * Math.PI)
+        ctx.fillStyle = '#60a5fa'
+        ctx.fill()
+      }
+    }
+
     // trendline preview
-    if (p1Ref.current && p2Ref.current) {
+    if (p1Ref.current && p2Ref.current && activeTool !== 'ruler') {
       const x1 = ts.timeToCoordinate(p1Ref.current.time as Time)
       const y1 = candleSeries.priceToCoordinate(p1Ref.current.price)
       const x2 = ts.timeToCoordinate(p2Ref.current.time as Time)
@@ -182,20 +214,43 @@ export default function DrawingOverlay({
         ctx.setLineDash([])
       }
     }
-  }, [chart, candleSeries, drawings, hovered])
+  }, [chart, candleSeries, drawings, hovered, activeTool])
 
   useEffect(() => {
     if (!chart || !candleSeries) return
-    draw()
     const ts = chart.timeScale()
     const h = () => draw()
     ts.subscribeVisibleTimeRangeChange(h)
     ts.subscribeVisibleLogicalRangeChange(h)
+
+    // 轮询绘制直到坐标可用（图表数据加载完成后自动定位）
+    const timer = setInterval(() => {
+      if (drawings.length === 0) {
+        clearInterval(timer)
+        return
+      }
+      const first = drawings[0]
+      if (first.type === 'horizontal') {
+        const y = candleSeries.priceToCoordinate(first.price1)
+        if (y !== null) {
+          draw()
+          clearInterval(timer)
+        }
+      } else if (first.type === 'vertical' || first.type === 'trendline') {
+        const x = ts.timeToCoordinate(first.time1 as Time)
+        if (x !== null) {
+          draw()
+          clearInterval(timer)
+        }
+      }
+    }, 200)
+
     return () => {
+      clearInterval(timer)
       ts.unsubscribeVisibleTimeRangeChange(h)
       ts.unsubscribeVisibleLogicalRangeChange(h)
     }
-  }, [chart, candleSeries, draw])
+  }, [chart, candleSeries, draw, drawings])
   useEffect(() => {
     draw()
   }, [drawings, draw, hovered])
@@ -205,18 +260,22 @@ export default function DrawingOverlay({
     if (!c || !chart) return
     const p = c.parentElement
     if (!p) return
+    const raf = {current: 0}
     const fn = () => {
       const r = p.getBoundingClientRect()
       c.width = r.width * dpr
       c.height = r.height * dpr
       c.style.width = r.width + 'px'
       c.style.height = r.height + 'px'
-      draw()
+      raf.current = requestAnimationFrame(() => draw())
     }
     const o = new ResizeObserver(fn)
     o.observe(p)
     fn()
-    return () => o.disconnect()
+    return () => {
+      cancelAnimationFrame(raf.current)
+      o.disconnect()
+    }
   }, [chart, draw])
 
   const getCoords = useCallback(
@@ -238,6 +297,23 @@ export default function DrawingOverlay({
       const r = canvasRef.current.getBoundingClientRect()
       const mx = e.clientX - r.left
       const my = e.clientY - r.top
+
+      // ruler：点击选点
+      if (activeTool === 'ruler') {
+        const coords = getCoords(e.clientX, e.clientY)
+        if (!coords) return
+        if (!p1Ref.current) {
+          p1Ref.current = coords
+          p2Ref.current = null
+          setRulerMeasure(null)
+        } else {
+          p2Ref.current = coords
+          setRulerMeasure({p1: p1Ref.current, p2: coords})
+          p1Ref.current = null
+          p2Ref.current = null
+        }
+        return
+      }
 
       // 画新线
       if (activeTool !== 'cursor') {
@@ -375,7 +451,10 @@ export default function DrawingOverlay({
       }
       setHovered(found)
       setHoverPos(found ? {x: e.clientX, y: e.clientY - 40} : null)
-      if (activeTool === 'trendline' && p1Ref.current) {
+      if (
+        p1Ref.current &&
+        (activeTool === 'trendline' || activeTool === 'ruler')
+      ) {
         const coords = getCoords(e.clientX, e.clientY)
         if (coords) {
           p2Ref.current = coords
@@ -455,9 +534,10 @@ export default function DrawingOverlay({
   }, [])
 
   useEffect(() => {
-    if (activeTool !== 'trendline') {
+    if (activeTool !== 'trendline' && activeTool !== 'ruler') {
       p1Ref.current = null
       p2Ref.current = null
+      setRulerMeasure(null)
     }
   }, [activeTool])
 
@@ -480,6 +560,60 @@ export default function DrawingOverlay({
         }}
         onMouseDown={interactive ? onMouseDown : undefined}
       />
+      {rulerMeasure && (
+        <div
+          className="absolute z-50 bg-[#1c1c1f] border border-blue-500/40 rounded-lg shadow-xl px-3 py-2 text-xs whitespace-nowrap pointer-events-none"
+          style={{left: 8, top: 8}}
+        >
+          <div className="text-blue-400 font-medium mb-1">📏 测量</div>
+          <div className="space-y-0.5 text-gray-300">
+            <div>
+              价差:{' '}
+              <span
+                className={
+                  rulerMeasure.p2.price >= rulerMeasure.p1.price
+                    ? 'text-green-400'
+                    : 'text-red-400'
+                }
+              >
+                {(rulerMeasure.p2.price - rulerMeasure.p1.price).toFixed(8)}
+              </span>
+            </div>
+            <div>
+              涨跌:{' '}
+              <span
+                className={
+                  rulerMeasure.p2.price >= rulerMeasure.p1.price
+                    ? 'text-green-400'
+                    : 'text-red-400'
+                }
+              >
+                {(
+                  ((rulerMeasure.p2.price - rulerMeasure.p1.price) /
+                    rulerMeasure.p1.price) *
+                  100
+                ).toFixed(2)}
+                %
+              </span>
+            </div>
+            <div>
+              K线数:{' '}
+              <span className="text-gray-200">
+                {Math.round(
+                  Math.abs(rulerMeasure.p2.time - rulerMeasure.p1.time) / 3600
+                )}
+                h
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setRulerMeasure(null)}
+            className="mt-1.5 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            清除
+          </button>
+        </div>
+      )}
       {hovered && hoverPos && (
         <div
           className="absolute z-50 bg-[#1c1c1f] border border-gray-700 rounded-lg shadow-xl px-3 py-2 text-xs whitespace-nowrap pointer-events-none"

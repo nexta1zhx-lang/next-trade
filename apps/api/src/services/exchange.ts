@@ -43,7 +43,9 @@ let loadingFuture: Promise<InstanceType<typeof ccxt.binance>> | null = null
  * 获取共享的 Binance USDT 永续合约交易所实例
  * 复用 loadMarkets 避免每次请求都拉取全量市场数据
  */
-export async function getBinanceFuture(): Promise<InstanceType<typeof ccxt.binance>> {
+export async function getBinanceFuture(): Promise<
+  InstanceType<typeof ccxt.binance>
+> {
   if (binanceFuture) return binanceFuture
   if (loadingFuture) return loadingFuture
 
@@ -51,12 +53,9 @@ export async function getBinanceFuture(): Promise<InstanceType<typeof ccxt.binan
     const ex = new ccxt.binance({
       enableRateLimit: true,
       timeout: 30000,
-      options: {defaultType: 'future'}
+      options: {defaultType: 'swap'}
     })
     if (config.HTTPS_PROXY) {
-      process.env.HTTPS_PROXY = config.HTTPS_PROXY
-      process.env.HTTP_PROXY = config.HTTPS_PROXY
-      await ex.loadProxyModules()
       ex.httpsProxy = config.HTTPS_PROXY
     }
     await ex.loadMarkets()

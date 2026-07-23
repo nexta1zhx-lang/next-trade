@@ -73,13 +73,12 @@ async function fetchAllDailyOHLCV(date: string): Promise<ComputedMarket[]> {
   const exchange = new ccxt.binance({
     enableRateLimit: true,
     timeout: 30000,
-    options: {defaultType: 'future'}
+    options: {defaultType: 'swap'}
   })
 
   if (config.HTTPS_PROXY) {
     process.env.HTTPS_PROXY = config.HTTPS_PROXY
     process.env.HTTP_PROXY = config.HTTPS_PROXY
-    await exchange.loadProxyModules()
     exchange.httpsProxy = config.HTTPS_PROXY
   }
 

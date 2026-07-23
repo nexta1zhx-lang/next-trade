@@ -339,6 +339,23 @@ export const assetSnapshots = pgTable(
 )
 
 // ═══════════════════════════════════════════
+// 用户配置表（K 线刷新模式、轮询间隔等）
+// ═══════════════════════════════════════════
+export const userConfig = pgTable('user_config', {
+  userId: integer('user_id')
+    .references(() => users.id)
+    .primaryKey(),
+
+  /** 刷新模式: 'ws' | 'polling' */
+  klineMode: varchar('kline_mode', {length: 10}).default('polling').notNull(),
+
+  /** 轮询间隔（毫秒） */
+  klineInterval: integer('kline_interval').default(10000).notNull(),
+
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+})
+
+// ═══════════════════════════════════════════
 // 出入金流水表（用于 NAV 计算剔除出入金干扰）
 // ═══════════════════════════════════════════
 export const capitalFlows = pgTable(

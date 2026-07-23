@@ -26,15 +26,6 @@ router.get('/:symbol/klines', zValidator('query', klinesSchema), async c => {
   const symbol = decodeURIComponent(c.req.param('symbol'))
   const {timeframe, limit, since} = c.req.valid('query')
 
-  // Redis 缓存（5 分钟）
-  const cacheKey = `klines:${symbol}:${timeframe}:${limit}:${since ?? ''}`
-  if (redis.status === 'ready') {
-    const cached = await redis.get(cacheKey)
-    if (cached) {
-      return c.json({success: true, data: JSON.parse(cached)})
-    }
-  }
-
   try {
     const exchange = await getBinanceFuture()
     const ohlcv = await exchange.fetchOHLCV(symbol, timeframe, since, limit)
@@ -46,11 +37,6 @@ router.get('/:symbol/klines', zValidator('query', klinesSchema), async c => {
       close: c[4] ?? 0,
       volume: c[5] ?? 0
     }))
-
-    // 缓存 5 分钟
-    if (redis.status === 'ready') {
-      await redis.set(cacheKey, JSON.stringify(candles), 'EX', 300)
-    }
 
     return c.json({success: true, data: candles})
   } catch (err) {

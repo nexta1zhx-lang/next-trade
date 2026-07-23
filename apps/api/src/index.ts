@@ -1,4 +1,7 @@
-import {serve} from '@hono/node-server'
+import {getRequestListener} from '@hono/node-server'
+import {createServer} from 'node:http'
+import {WebSocketServer, WebSocket as WsClient} from 'ws'
+import {HttpsProxyAgent} from 'https-proxy-agent'
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import {logger} from 'hono/logger'
@@ -11,8 +14,11 @@ import {authRouter} from './routes/auth.js'
 import {symbolsRouter} from './routes/symbols.js'
 import {v1KeysRouter} from './routes/v1/keys.js'
 import {v1TradesRouter} from './routes/v1/trades.js'
+import {userConfigRouter} from './routes/user-config.js'
 import {authMiddleware} from './middleware/auth.js'
 import {collectAndStore} from './services/dailyMarketService.js'
+import {stream} from 'hono/streaming'
+import {startBinanceTicker, subscribeTicker} from './services/wsTicker.js'
 const app = new Hono()
 
 // ─── 全局中间件 ───
@@ -54,6 +60,28 @@ app.route('/api/v1/trades', v1TradesRouter)
 // ─── V1 分析路由认证 ───
 app.use('/api/v1/analytics/*', authMiddleware)
 
+// ─── 用户配置路由 ───
+app.route('/api/user/config', userConfigRouter)
+
+// ─── SSE 行情推送（用于实时盯盘） ───
+app.get('/api/ticker/stream', async c => {
+  c.header('Content-Type', 'text/event-stream')
+  c.header('Cache-Control', 'no-cache')
+  c.header('Connection', 'keep-alive')
+  c.header('X-Accel-Buffering', 'no')
+
+  startBinanceTicker()
+
+  return stream(c, async s => {
+    const unsubscribe = subscribeTicker(tickers => {
+      s.write(`data: ${JSON.stringify(tickers)}\n\n`)
+    })
+    c.req.raw.signal?.addEventListener('abort', () => unsubscribe())
+    // 保持连接直到客户端断开
+    await new Promise(() => {})
+  })
+})
+
 // ─── 启动 ───
 async function main() {
   // 连接 Redis
@@ -64,9 +92,68 @@ async function main() {
     console.warn('⚠ Redis unavailable, running without cache')
   }
 
-  serve({fetch: app.fetch, port: config.PORT}, (info: {port: number}) =>
-    console.log(`✓ API running on http://localhost:${info.port}`)
-  )
+  const server = createServer()
+  const wss = new WebSocketServer({noServer: true})
+
+  // WebSocket 代理：前端连接 /ws → 后端连接 Binance 期货
+  server.on('upgrade', (req, socket, head) => {
+    const url = new URL(req.url ?? '', `http://${req.headers.host}`)
+    if (url.pathname !== '/ws') {
+      socket.destroy()
+      return
+    }
+
+    wss.handleUpgrade(req, socket, head, ws => {
+      const symbol = url.searchParams.get('symbol')
+      const timeframe = url.searchParams.get('timeframe') ?? '1h'
+
+      if (!symbol) {
+        ws.close(4001, 'missing symbol')
+        return
+      }
+
+      const binanceSymbol = symbol
+        .replace('/USDT:USDT', 'USDT')
+        .replace('/USDT', 'USDT')
+        .replace(':', '')
+        .toLowerCase()
+
+      const binanceWs = config.HTTPS_PROXY
+        ? new WsClient(
+            `wss://fstream.binance.com/market/ws/${binanceSymbol}@kline_1m`,
+            {agent: new HttpsProxyAgent(config.HTTPS_PROXY)}
+          )
+        : new WsClient(
+            `wss://fstream.binance.com/market/ws/${binanceSymbol}@kline_1m`
+          )
+
+      // Binance 发 ping 时自动回复 pong（ws 库默认行为，显式确保）
+      binanceWs.on('ping', (data: Buffer) => {
+        if (binanceWs.readyState === binanceWs.OPEN) binanceWs.pong(data)
+      })
+
+      binanceWs.on('open', () => {
+        console.log(`[ws proxy] connected: ${binanceSymbol}@kline_1m`)
+      })
+
+      binanceWs.on('message', (data: Buffer) => {
+        if (ws.readyState === ws.OPEN) {
+          ws.send(data.toString())
+        }
+      })
+
+      // 任一端断开都关闭另一端
+      binanceWs.on('close', () => ws.close())
+      binanceWs.on('error', () => binanceWs.close())
+      ws.on('close', () => binanceWs.close())
+      ws.on('error', () => binanceWs.close())
+    })
+  })
+
+  server.on('request', getRequestListener(app.fetch))
+  server.listen(config.PORT, () => {
+    console.log(`✓ API running on http://localhost:${config.PORT}`)
+  })
 
   // 注册每日行情采集定时任务 (UTC 00:05)
   cron.schedule(

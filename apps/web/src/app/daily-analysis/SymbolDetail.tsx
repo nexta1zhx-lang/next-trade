@@ -72,7 +72,7 @@ export default function SymbolDetail({
 }: SymbolDetailProps) {
   const [timeframe, setTimeframe] = useState<string>('1h')
   const [activeTool, setActiveTool] = useState<
-    'cursor' | 'horizontal' | 'trendline' | 'vertical'
+    'cursor' | 'horizontal' | 'trendline' | 'vertical' | 'ruler'
   >('cursor')
   const [drawings, setDrawings] = useState<TrendLine[] | null>(null)
   const DRAWINGS_KEY = `drawings:${item.symbol}`
@@ -80,7 +80,7 @@ export default function SymbolDetail({
   const [candleSeries, setCandleSeries] =
     useState<ISeriesApi<'Candlestick'> | null>(null)
 
-  // 复盘
+  // 想法
   const [reviews, setReviews] = useState<SymbolReview[]>([])
   const [reviewTitle, setReviewTitle] = useState('')
   const [reviewContent, setReviewContent] = useState('')
@@ -97,10 +97,13 @@ export default function SymbolDetail({
     hitId?: string
   } | null>(null)
   const chartAreaRef = useRef<HTMLDivElement>(null)
-  const [chartHeight, setChartHeight] = useState(0)
+  const [chartHeight, setChartHeight] = useState(400)
+  const prevHeightRef = useRef(400)
   const [crosshairInfo, setCrosshairInfo] = useState<CrosshairInfo | null>(null)
   const justSyncedRef = useRef(false)
   const loadedRef = useRef(false)
+  const reviewFetchedRef = useRef<string | null>(null)
+  const drawFetchedRef = useRef<string | null>(null)
   const [loggedIn, setLoggedIn] = useState(() => !!getToken())
 
   // 辅助线保存模式: 'local' | 'cloud'
@@ -168,10 +171,10 @@ export default function SymbolDetail({
     }
   }, [loggedIn, DRAWINGS_KEY, item.symbol])
 
-  const loadedOnceRef = useRef(false)
-
   // 加载辅助线
   useEffect(() => {
+    if (drawFetchedRef.current === item.symbol) return
+    drawFetchedRef.current = item.symbol
     loadedRef.current = false
     if (drawSaveMode === 'cloud' && getToken()) {
       if (justSyncedRef.current) {
@@ -196,7 +199,10 @@ export default function SymbolDetail({
         .finally(() => {
           loadedRef.current = true
         })
-      return () => ctrl.abort()
+      return () => {
+        ctrl.abort()
+        drawFetchedRef.current = null
+      }
     } else {
       const saved = localStorage.getItem(DRAWINGS_KEY)
       if (saved) {
@@ -229,7 +235,8 @@ export default function SymbolDetail({
   }, [drawings])
 
   useEffect(() => {
-    if (!item.symbol) return
+    if (!item.symbol || reviewFetchedRef.current === item.symbol) return
+    reviewFetchedRef.current = item.symbol
     const ctrl = new AbortController()
     fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/reviews`, {
       headers: authHeaders(),
@@ -241,7 +248,10 @@ export default function SymbolDetail({
         if (!ctrl.signal.aborted && d.success) setReviews(d.data)
       })
       .catch(() => {})
-    return () => ctrl.abort()
+    return () => {
+      ctrl.abort()
+      reviewFetchedRef.current = null
+    }
   }, [item.symbol])
 
   useEffect(() => {
@@ -249,7 +259,10 @@ export default function SymbolDetail({
     if (!el) return
     const measure = () => {
       const h = el.clientHeight
-      if (h > 50) setChartHeight(h)
+      if (h > 50 && h !== prevHeightRef.current) {
+        prevHeightRef.current = h
+        setChartHeight(h)
+      }
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -340,7 +353,7 @@ export default function SymbolDetail({
     return () => document.removeEventListener('click', fn)
   }, [ctxMenu])
 
-  // 复盘
+  // 想法
   const addTag = (tag: string, color: string) => {
     if (!reviewTags.some(t => t.tag === tag))
       setReviewTags(prev => [...prev, {tag, color}])
@@ -547,16 +560,14 @@ export default function SymbolDetail({
             className="relative flex-1 min-h-0"
             onContextMenu={handleChartContextMenu}
           >
-            {chartHeight > 0 && (
-              <KlineChart
-                key={item.symbol}
-                symbol={item.symbol}
-                timeframe={timeframe}
-                height={chartHeight}
-                onChartReady={handleChartReady}
-                onCrosshairChange={handleCrosshairChange}
-              />
-            )}
+            <KlineChart
+              key={item.symbol}
+              symbol={item.symbol}
+              timeframe={timeframe}
+              height={chartHeight}
+              onChartReady={handleChartReady}
+              onCrosshairChange={handleCrosshairChange}
+            />
             <DrawingOverlay
               key={`ov-${item.symbol}`}
               chart={chart}
@@ -635,13 +646,13 @@ export default function SymbolDetail({
         )}
       </div>
 
-      {/* 复盘区 - 左右布局：新建复盘 | 历史复盘 */}
+      {/* 想法区 - 左右布局：新建想法 | 历史想法 */}
       <div className="border-t border-gray-700/30 p-3 flex-1 min-h-0 flex flex-col relative">
         {/* 未登录遮罩 */}
         {!getToken() && (
           <div className="absolute inset-0 z-20 bg-[#18181b]/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 rounded-b-xl">
             <FileText className="w-8 h-8 text-gray-600" />
-            <p className="text-sm text-gray-500">登录后可记录复盘思路</p>
+            <p className="text-sm text-gray-500">登录后可记录想法</p>
             <a
               href="/orders"
               className="px-4 py-1.5 bg-primary/20 text-primary rounded-lg text-xs hover:bg-primary/30 transition-colors"
@@ -651,10 +662,10 @@ export default function SymbolDetail({
           </div>
         )}
         <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1.5 shrink-0">
-          <FileText className="w-3.5 h-3.5" /> 复盘 — {selectedDate}
+          <FileText className="w-3.5 h-3.5" /> 想法 — {selectedDate}
         </h4>
         <div className="flex gap-3 flex-1 min-h-0">
-          {/* 左：新建复盘 */}
+          {/* 左：新建想法 */}
           <div className="w-1/2 flex flex-col gap-2 overflow-y-auto">
             <input
               value={reviewTitle}
@@ -664,7 +675,7 @@ export default function SymbolDetail({
                          placeholder:text-gray-600 focus:outline-none focus:border-blue-500 transition-colors shrink-0"
             />
             <div className="flex gap-2 flex-1 min-h-0">
-              {/* 左：复盘思路 */}
+              {/* 左：想法内容 */}
               <div className="flex-1 flex flex-col gap-2">
                 <textarea
                   value={reviewContent}
@@ -774,10 +785,10 @@ export default function SymbolDetail({
             </div>
           </div>
 
-          {/* 右：历史复盘 */}
+          {/* 右：历史想法 */}
           <div className="w-1/2 border-l border-gray-700/30 pl-3 overflow-y-auto space-y-1">
             {reviews.length === 0 ? (
-              <p className="text-xs text-gray-600 py-2">暂无复盘记录</p>
+              <p className="text-xs text-gray-600 py-2">暂无想法记录</p>
             ) : (
               reviews.map(r => (
                 <div
