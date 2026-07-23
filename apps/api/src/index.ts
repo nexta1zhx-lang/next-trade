@@ -151,8 +151,8 @@ async function main() {
   })
 
   server.on('request', getRequestListener(app.fetch))
-  server.listen(config.PORT, () => {
-    console.log(`✓ API running on http://localhost:${config.PORT}`)
+  server.listen(config.PORT, '0.0.0.0', () => {
+    console.log(`✓ API running on http://0.0.0.0:${config.PORT}`)
   })
 
   // 注册每日行情采集定时任务 (UTC 00:05)

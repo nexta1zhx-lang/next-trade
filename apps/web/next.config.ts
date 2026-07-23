@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@nexttrade/shared'],
+  allowedDevOrigins: ['192.168.31.130'],
   async rewrites() {
     return [
       {
