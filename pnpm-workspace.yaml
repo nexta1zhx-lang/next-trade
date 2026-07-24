@@ -7,5 +7,6 @@ allowBuilds:
   ccxt: true
   esbuild: true
   keccak: true
+  msgpackr-extract: true
   sharp: true
   utf-8-validate: true

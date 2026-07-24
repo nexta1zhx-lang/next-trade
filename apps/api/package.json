@@ -13,10 +13,17 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@binance/common": "^2.4.5",
+    "@binance/derivatives-trading-coin-futures": "^19.0.0",
+    "@binance/derivatives-trading-usds-futures": "^36.0.0",
+    "@binance/simple-earn": "^16.0.1",
+    "@binance/spot": "^32.0.1",
+    "@binance/wallet": "^22.0.1",
     "@hono/node-server": "^2.0.10",
     "@hono/zod-validator": "^0.4.0",
     "@nexttrade/shared": "workspace:*",
     "argon2": "^0.45.0",
+    "bullmq": "^5.80.12",
     "ccxt": "^4.4.0",
     "decimal.js": "^10.6.0",
     "dotenv": "^17.4.2",

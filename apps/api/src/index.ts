@@ -17,9 +17,14 @@ import {v1TradesRouter} from './routes/v1/trades.js'
 import {userConfigRouter} from './routes/user-config.js'
 import {favoritesRouter} from './routes/favorites.js'
 import {assetRouter} from './routes/asset.js'
+import {assetQueue} from './services/assetQueue.js'
 import {authMiddleware} from './middleware/auth.js'
 import {collectAndStore} from './services/dailyMarketService.js'
-import {collectAllKeys} from './services/assetService.js'
+import {enqueueAllSnapshots} from './services/assetQueue.js'
+import {aggregateDailySummary} from './services/assetService.js'
+import {db} from './db/index.js'
+import {apiKeys} from './db/schema.js'
+import {eq, and} from 'drizzle-orm'
 import {stream} from 'hono/streaming'
 import {startBinanceTicker, subscribeTicker} from './services/wsTicker.js'
 const app = new Hono()
@@ -194,26 +199,57 @@ async function main() {
   )
   console.log('✓ Daily market data cron registered (UTC 00:05)')
 
-  // 注册资产快照定时采集任务 (UTC 00:10)
+  // 注册每小时资产快照采集 (BullMQ 重复任务)
+  await assetQueue.upsertJobScheduler(
+    'hourly-snapshot',
+    {pattern: '0 * * * *'},
+    {name: 'batch-snapshot', data: {}}
+  )
+  console.log('✓ Hourly asset snapshot scheduler registered')
+
+  // 注册每日资产聚合任务 (UTC 00:01)
   cron.schedule(
-    '10 0 * * *',
+    '1 0 * * *',
     async () => {
-      console.log('[Cron] 触发资产快照采集任务...')
+      console.log('[Cron] 触发每日资产聚合任务...')
       try {
-        const results = await collectAllKeys()
-        console.log(`[Cron] 资产快照采集完成: ${results.length} 个 Key`)
+        const yesterday = new Date()
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+        const dateStr = yesterday.toISOString().slice(0, 10)
+
+        const keys = await db
+          .select({id: apiKeys.id})
+          .from(apiKeys)
+          .where(
+            and(eq(apiKeys.exchangeId, 'binance'), eq(apiKeys.status, 'ACTIVE'))
+          )
+
+        for (const key of keys) {
+          try {
+            await aggregateDailySummary(key.id, dateStr)
+          } catch (err) {
+            console.error(
+              `[Cron] 聚合 key=${key.id} 失败:`,
+              (err as Error).message
+            )
+          }
+        }
+        console.log(`[Cron] 每日资产聚合完成: ${keys.length} 个 Key`)
       } catch (err) {
-        console.error('[Cron] 资产快照采集失败:', err)
+        console.error('[Cron] 每日资产聚合失败:', err)
       }
     },
     {
       timezone: 'UTC'
     }
   )
-  console.log('✓ Asset snapshot cron registered (UTC 00:10)')
+  console.log('✓ Daily asset aggregation cron registered (UTC 00:01')
 
   // 优雅退出（带强制兜底，确保 tsx watch 能正常重启）
   function shutdown() {
+    try {
+      assetQueue.close()
+    } catch {}
     try {
       redis.disconnect()
     } catch {}

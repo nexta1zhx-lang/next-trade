@@ -278,50 +278,52 @@ export interface FavoriteSymbolCreate {
   date: string
 }
 
-// ─── 资产快照 ───
-export interface AssetSnapshot {
-  snapDate: string
-  totalEquity: number
-  spotValue: number
-  contractEquity: number
-  unrealizedPnl: number
-  fundingValue: number
-  earnValue: number
-  marginEquity: number
-  marginDebt: number
+// ─── 资产快照（精简版） ───
+export interface AssetCurrent {
+  /** 无数据时后端返回的 Key 标签 */
+  label?: string
+  totalNetVal: number
+  fundingVal: number
+  spotVal: number
+  futuresUVal: number
+  futuresCoinVal: number
+  earnVal: number
+  /** ISO 时间戳，无数据时为 null */
+  snapshotAt: string | null
+  wsUpdateAt?: string
+  /** 累计净入金（入金-出金，用于剔除出入金干扰的收益计算） */
+  netDeposit?: number
 }
 
-export interface AssetOverview {
-  apiKeyId: number
-  label: string
-  exchange: string
-  snapDate: string
-  totalEquity: number
-  spotValue: number
-  contractEquity: number
-  unrealizedPnl: number
-  fundingValue: number
-  earnValue: number
-  marginEquity: number
-  marginDebt: number
+export interface AssetTodayExtremes {
+  highVal: number
+  highTime: string | null
+  lowVal: number
+  lowTime: string | null
 }
 
-export interface AssetSnapshotResponse {
-  success: boolean
-  data?: {
-    keyId: number
-    label: string
-    snapshots: AssetSnapshot[]
-  }
-  error?: string
+export interface AssetTodayData {
+  extremes: AssetTodayExtremes | null
+  intraday: Array<{time: string; value: number}>
 }
 
-export interface AssetCollectResponse {
-  success: boolean
-  data?: {
-    apiKeyId: number
-    snapDate: string
-    totalEquity: number
-  }
-  error?: string
+export interface AssetDailyOHLC {
+  date: string
+  openVal: number
+  highVal: number
+  lowVal: number
+  closeVal: number
+  amplitude: number
+  highTime: string | null
+  lowTime: string | null
+}
+
+export interface AssetSnapshotRow {
+  snapshotAt: string
+  totalNetVal: string
+  fundingVal: string | null
+  spotVal: string | null
+  futuresUVal: string | null
+  futuresCoinVal: string | null
+  earnVal: string | null
 }

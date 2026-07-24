@@ -99,18 +99,13 @@ router.post('/', zValidator('json', createSchema), async c => {
     createdAt: key.createdAt.toISOString()
   }
 
-  // 绑定 Binance Key 后自动拉一次 SAPI 历史快照（后台执行，不阻塞返回）
+  // 绑定 Binance Key 后自动投递首次资产采集（后台执行，不阻塞返回）
   if (exchangeId === 'binance') {
-    import('../../services/syncService.js').then(
-      ({syncHistoricalSnapshots}) => {
-        syncHistoricalSnapshots(key.id).catch((err: Error) =>
-          console.error(
-            `[keys] SAPI sync failed for key=${key.id}:`,
-            err.message
-          )
-        )
-      }
-    )
+    import('../../services/assetQueue.js').then(({enqueueAssetSnapshot}) => {
+      enqueueAssetSnapshot(key.id).catch((err: Error) =>
+        console.error(`[keys] 首次资产采集失败 key=${key.id}:`, err.message)
+      )
+    })
   }
 
   return c.json({success: true, data: result}, 201)

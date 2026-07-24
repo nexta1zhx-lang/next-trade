@@ -8,6 +8,9 @@
  *   api_keys           — 交易所 API Key（敏感字段 AES-256-GCM 加密存储）
  *   trades             — 标准化成交流水（UNIQUE 联合约束防重）
  *   daily_pnl_summary  — 日汇总盈亏预聚合
+ *   account_snapshots  — 5分钟高频资产快照（资产模块核心）
+ *   daily_summaries    — 每日资产极值归档（资产K线图）
+ *   capital_flows      — 出入金流水
  */
 
 import {
@@ -233,8 +236,9 @@ export const dailyPnlSummary = pgTable(
 )
 
 // ═══════════════════════════════════════════
-// 账户余额快照表（每 5 分钟定时采集）
+// 5分钟高频资产快照表（资产模块核心表）
 // ═══════════════════════════════════════════
+// 总净资产 = fundingVal + spotVal + futuresUVal + futuresCoinVal + earnVal
 export const accountSnapshots = pgTable(
   'account_snapshots',
   {
@@ -245,43 +249,46 @@ export const accountSnapshots = pgTable(
       .references(() => apiKeys.id)
       .notNull(),
 
-    /** 总净值（USDT 本位，现货余额 + 合约权益） */
-    totalNetValue: numeric('total_net_value', {
+    /** 折算总净资产（USDT） */
+    totalNetVal: numeric('total_net_val', {
       precision: 24,
       scale: 8
     }).notNull(),
 
-    /** 现货账户总余额（USDT） */
-    spotBalance: numeric('spot_balance', {
+    /** 资金钱包余额（USDT） */
+    fundingVal: numeric('funding_val', {
       precision: 24,
       scale: 8
     }).default('0'),
 
-    /** 合约账户权益（USDT） */
-    contractEquity: numeric('contract_equity', {
+    /** 现货总市值（USDT） */
+    spotVal: numeric('spot_val', {
       precision: 24,
       scale: 8
     }).default('0'),
 
-    /** 未实现盈亏（USDT） */
-    unrealizedPnl: numeric('unrealized_pnl', {
+    /** U本位合约权益（USDT） */
+    futuresUVal: numeric('futures_u_val', {
       precision: 24,
       scale: 8
     }).default('0'),
 
-    /** 已用保证金（USDT） */
-    marginUsed: numeric('margin_used', {
+    /** 币本位合约权益（折算 USDT） */
+    futuresCoinVal: numeric('futures_coin_val', {
       precision: 24,
       scale: 8
     }).default('0'),
 
-    /** 合约名义持仓价值（USDT） */
-    notionalValue: numeric('notional_value', {
+    /** 理财持仓价值（USDT） */
+    earnVal: numeric('earn_val', {
       precision: 24,
       scale: 8
     }).default('0'),
 
-    /** 快照时间 */
+    /** 各模块详细余额快照（JSON） */
+    details: jsonb('details').default('{}'),
+
+    /** 采样时间（UTC） */
     snapshotAt: timestamp('snapshot_at').notNull(),
 
     createdAt: timestamp('created_at').defaultNow().notNull()
@@ -293,10 +300,10 @@ export const accountSnapshots = pgTable(
 )
 
 // ═══════════════════════════════════════════
-// 每日资产快照表（UTC 00:00，用于 NAV 计算）
+// 每日资产极值归档表（用于资产 K 线图）
 // ═══════════════════════════════════════════
-export const assetSnapshots = pgTable(
-  'asset_snapshots',
+export const dailySummaries = pgTable(
+  'daily_summaries',
   {
     id: serial('id').primaryKey(),
 
@@ -305,57 +312,35 @@ export const assetSnapshots = pgTable(
       .references(() => apiKeys.id)
       .notNull(),
 
-    /** 快照日期（YYYY-MM-DD，UTC） */
-    snapDate: varchar('snap_date', {length: 10}).notNull(),
+    /** 日期（YYYY-MM-DD，UTC） */
+    date: varchar('date', {length: 10}).notNull(),
 
-    /** 总权益（USDT 本位，含未实现盈亏） */
-    totalEquity: numeric('total_equity', {precision: 24, scale: 8}).notNull(),
+    /** 开盘资产（00:00 UTC） */
+    openVal: numeric('open_val', {precision: 24, scale: 8}).notNull(),
 
-    /** 现货总市值（USDT） */
-    spotValue: numeric('spot_value', {precision: 24, scale: 8}).default('0'),
+    /** 当天最高资产 */
+    highVal: numeric('high_val', {precision: 24, scale: 8}).notNull(),
 
-    /** 合约权益（账户余额 + 未实现盈亏） */
-    contractEquity: numeric('contract_equity', {
-      precision: 24,
-      scale: 8
-    }).default('0'),
+    /** 最高资产发生时间 */
+    highTime: timestamp('high_time'),
 
-    /** 未实现盈亏 */
-    unrealizedPnl: numeric('unrealized_pnl', {
-      precision: 24,
-      scale: 8
-    }).default('0'),
+    /** 当天最低资产 */
+    lowVal: numeric('low_val', {precision: 24, scale: 8}).notNull(),
 
-    /** 资金钱包余额（USDT） */
-    fundingValue: numeric('funding_value', {
-      precision: 24,
-      scale: 8
-    }).default('0'),
+    /** 最低资产发生时间 */
+    lowTime: timestamp('low_time'),
 
-    /** 理财持仓价值（USDT，按面值+应计利息） */
-    earnValue: numeric('earn_value', {precision: 24, scale: 8}).default('0'),
+    /** 收盘资产（23:59 UTC） */
+    closeVal: numeric('close_val', {precision: 24, scale: 8}).notNull(),
 
-    /** 杠杆账户净资产（USDT） */
-    marginEquity: numeric('margin_equity', {
-      precision: 24,
-      scale: 8
-    }).default('0'),
+    /** 当日振幅百分比 */
+    amplitude: numeric('amplitude', {precision: 10, scale: 4}).default('0'),
 
-    /** 杠杆账户总负债（USDT） */
-    marginDebt: numeric('margin_debt', {precision: 24, scale: 8}).default('0'),
-
-    /** 各模块详细余额快照（JSON，含各币种明细） */
-    details: jsonb('details').default('{}'),
-
-    /** 快照时间 */
-    snapshotAt: timestamp('snapshot_at').notNull(),
-    /** 是否由历史逆向推演生成（非实时快照） */
-    isReconstructed: boolean('is_reconstructed').default(false),
     createdAt: timestamp('created_at').defaultNow().notNull()
   },
   table => ({
     /** 每天每个 Key 唯一一条 */
-    keyDate: uniqueIndex('idx_ass_key_date').on(table.apiKeyId, table.snapDate)
+    keyDate: uniqueIndex('idx_ds_key_date').on(table.apiKeyId, table.date)
   })
 )
 
