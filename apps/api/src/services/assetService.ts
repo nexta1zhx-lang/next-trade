@@ -384,12 +384,13 @@ export async function collectAssetSnapshot(
 
   // 合约权益 = 钱包余额 + 未实现盈亏（已含全部持仓的未实现盈亏）
   const contractEquity =
-    Number(futuresData.walletBalance) + Number(futuresData.unrealizedPnl)
-  const unrealizedPnl = Number(futuresData.unrealizedPnl)
+    Number(futuresData.walletBalance ?? 0) +
+    Number(futuresData.unrealizedPnl ?? 0)
+  const unrealizedPnl = Number(futuresData.unrealizedPnl ?? 0)
 
   // 杠杆用 netAsset（已扣除债务）
-  const marginEquity = Number(marginData.totalNetAsset)
-  const marginDebt = Number(marginData.totalDebt)
+  const marginEquity = Number(marginData.totalNetAsset ?? 0)
+  const marginDebt = Number(marginData.totalDebt ?? 0)
 
   // 5. 计算总权益
   const totalEquity =

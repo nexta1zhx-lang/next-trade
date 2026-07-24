@@ -1,6 +1,6 @@
 'use client'
 
-import {useCallback, useEffect, useMemo, useState, useRef} from 'react'
+import {useCallback, useEffect, useMemo, useState} from 'react'
 import {
   AreaChart,
   Area,
@@ -101,13 +101,13 @@ interface KeySnapshots {
 
 export default function AssetPage() {
   const [loggedIn, setLoggedIn] = useState(false)
+  const [initDone, setInitDone] = useState(false)
   const [keys, setKeys] = useState<KeySnapshots[]>([])
   const [overviews, setOverviews] = useState<AssetOverview[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null)
   const [dateRange, setDateRange] = useState<DateRange>('3m')
-  const syncTriggered = useRef(false)
 
   const userConfig = useUserConfig()
   const [currency, setCurrency] = useState(
@@ -116,12 +116,12 @@ export default function AssetPage() {
   const assetAutoSync = userConfig.assetAutoSync ?? 1
 
   useEffect(() => {
+    setLoggedIn(!!getToken())
+    setInitDone(true)
+  }, [])
+  useEffect(() => {
     setCurrency((userConfig.currency as string) ?? 'USD')
   }, [userConfig.currency])
-
-  useEffect(() => {
-    setLoggedIn(!!getToken())
-  }, [])
 
   const fetchData = useCallback(async () => {
     if (!loggedIn) {
@@ -168,27 +168,6 @@ export default function AssetPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
-
-  // 自动同步（首次使用无数据时触发）
-  const today = new Date().toISOString().slice(0, 10)
-  useEffect(() => {
-    if (!loggedIn || syncTriggered.current || !assetAutoSync || loading) return
-    // 检查今天是否有快照
-    const hasToday = keys.some(k => k.snapshots.some(s => s.snapDate === today))
-    if (!hasToday && keys.length > 0) {
-      syncTriggered.current = true
-      fetch(`${API_ORIGIN}/api/asset/sync`, {
-        method: 'POST',
-        headers: authHeaders()
-      })
-        .then(r => r.json())
-        .then(r => {
-          if (r.success) fetchData()
-        })
-        .catch(() => {})
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loggedIn, loading, assetAutoSync])
 
   const currentKey = keys.find(k => k.keyId === selectedKeyId)
   const currentOverview = overviews.find(o => o.apiKeyId === selectedKeyId)
@@ -330,7 +309,7 @@ export default function AssetPage() {
         </div>
       )}
 
-      {!loggedIn && (
+      {initDone && !loggedIn && (
         <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl px-5 py-3 text-sm text-amber-400">
           <AlertCircle className="w-4 h-4 shrink-0" /> 请先登录
         </div>
@@ -507,7 +486,7 @@ export default function AssetPage() {
         </>
       )}
 
-      {!loading && loggedIn && keys.length === 0 && (
+      {initDone && !loading && loggedIn && keys.length === 0 && (
         <div className="text-center py-20 text-sm text-gray-500">
           <Wallet className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p className="mb-1">暂无资产数据</p>
