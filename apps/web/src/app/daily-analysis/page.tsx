@@ -7,7 +7,8 @@ import {
   AlertCircle,
   ArrowUpDown,
   Star,
-  Search
+  Search,
+  RefreshCw
 } from 'lucide-react'
 import type {DailyAnalysisResult, DailyAnalysisItem} from '@nexttrade/shared'
 import type {FavoriteSymbol} from '@nexttrade/shared'
@@ -94,6 +95,7 @@ export default function DailyAnalysisPage() {
   }, [])
   const [data, setData] = useState<DailyAnalysisResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('change')
   const [sortAsc, setSortAsc] = useState(false)
@@ -222,14 +224,18 @@ export default function DailyAnalysisPage() {
   )
 
   const fetchAnalysis = useCallback(
-    async (signal: AbortSignal, isRetry = false) => {
+    async (signal: AbortSignal, isRetry = false, force = false) => {
       setLoading(true)
       if (!isRetry) setError(null)
       try {
-        const res = await fetch(
-          `${API_ORIGIN}/api/daily-analysis?date=${date}&minQuoteVolume=${dailyMinQuote}`,
-          {signal}
-        )
+        const params = new URLSearchParams({
+          date,
+          minQuoteVolume: String(dailyMinQuote)
+        })
+        if (force) params.set('force', 'true')
+        const res = await fetch(`${API_ORIGIN}/api/daily-analysis?${params}`, {
+          signal
+        })
         const json = await res.json()
         if (!json.success) throw new Error(json.error ?? 'Request failed')
         if (!json.data && !isRetry) return fetchAnalysis(signal, true)
@@ -239,10 +245,17 @@ export default function DailyAnalysisPage() {
         setError((e as Error).message)
       } finally {
         setLoading(false)
+        setRefreshing(false)
       }
     },
     [date, dailyMinQuote]
   )
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true)
+    const c = new AbortController()
+    fetchAnalysis(c.signal, false, true)
+  }, [fetchAnalysis])
 
   useEffect(() => {
     const c = new AbortController()
@@ -280,6 +293,19 @@ export default function DailyAnalysisPage() {
               className="bg-[#0a0a0b] border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-200
                          focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark] w-36"
             />
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 bg-[#0a0a0b] border border-gray-700 rounded-lg px-2.5 py-1.5
+                         text-xs text-gray-400 hover:text-primary hover:border-primary/40 transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+              title="手动刷新同步（跳过缓存，重新拉取 Binance 数据）"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}
+              />
+              刷新
+            </button>
           </div>
           <span className="ml-auto flex items-center gap-3">
             {clock && (
@@ -287,10 +313,10 @@ export default function DailyAnalysisPage() {
                 {clock}
               </span>
             )}
-            {loading && (
+            {(loading || refreshing) && (
               <span className="flex items-center gap-1.5 text-xs text-primary">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                加载中
+                {refreshing ? '刷新中' : '加载中'}
               </span>
             )}
           </span>

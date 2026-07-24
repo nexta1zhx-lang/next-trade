@@ -22,7 +22,11 @@ const querySchema = z.object({
     .refine(d => d < new Date().toISOString().slice(0, 10), {
       message: 'Cannot query today or future'
     }),
-  minQuoteVolume: z.coerce.number().positive().default(1_000_000)
+  minQuoteVolume: z.coerce.number().positive().default(1_000_000),
+  force: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform(v => v === 'true')
 })
 
 // ─── 从 DB 查询并组装结果 ───
@@ -76,11 +80,11 @@ function buildResultFromRows(
 
 // ─── 主路由 ───
 router.get('/', zValidator('query', querySchema), async c => {
-  const {date, minQuoteVolume} = c.req.valid('query')
+  const {date, minQuoteVolume, force} = c.req.valid('query')
   const cacheKey = `daily:${date}:${minQuoteVolume}`
 
-  // 1. Redis 缓存命中 → 直接返回
-  if (redis.status === 'ready') {
+  // 1. Redis 缓存命中 → 直接返回（force 跳过）
+  if (!force && redis.status === 'ready') {
     const cached = await redis.get(cacheKey)
     if (cached) {
       return c.json({

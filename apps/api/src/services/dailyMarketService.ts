@@ -2,6 +2,7 @@ import {db} from '../db/index.js'
 import {dailyMarketData} from '../db/schema.js'
 import {redis} from './redis.js'
 import {getBinanceFuture} from './exchange.js'
+import type ccxt from 'ccxt'
 
 interface MarketMeta {
   id: string
@@ -49,8 +50,8 @@ async function asyncPool<T, R>(
       const idx = items.indexOf(item)
       try {
         results[idx] = await fn(item)
-      } catch {
-        // skip failed symbols silently
+      } catch (err) {
+        console.warn(`[asyncPool] 未知错误:`, (err as Error).message)
       }
     }
   }
@@ -67,21 +68,17 @@ function round(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-// ─── 从 Binance 抓取全量日线数据 ───
-async function fetchAllDailyOHLCV(date: string): Promise<ComputedMarket[]> {
-  const exchange = await getBinanceFuture()
-  const allMarkets = Object.values(exchange.markets) as MarketMeta[]
-  const markets = allMarkets.filter(
-    m => m.active && m.swap && m.linear && m.quote === 'USDT'
-  )
-
-  const symbols = markets.map(m => m.id)
-  const dateUtc = new Date(`${date}T00:00:00.000Z`)
-  const since = dateUtc.getTime()
-
-  const ohlcvResults = await asyncPool(symbols, 10, async (id: string) => {
-    await new Promise(r => setTimeout(r, 50))
+// ─── 带重试的单个币种 OHLCV 抓取 ───
+async function fetchSingleOHLCVWithRetry(
+  exchange: InstanceType<typeof ccxt.binance>,
+  id: string,
+  markets: MarketMeta[],
+  since: number,
+  retries = 3
+): Promise<RawOHLCV | null> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
+      await new Promise(r => setTimeout(r, 100 + Math.random() * 50))
       const ohlcv = await exchange.fetchOHLCV(id, '1d', since, 1)
       if (!ohlcv || ohlcv.length === 0) return null
       const candle = ohlcv[0]
@@ -96,10 +93,72 @@ async function fetchAllDailyOHLCV(date: string): Promise<ComputedMarket[]> {
         close: candle[4] ?? 0,
         volume: candle[5] ?? 0
       } as RawOHLCV
-    } catch {
-      return null
+    } catch (err) {
+      const isLast = attempt === retries
+      if (isLast) {
+        console.warn(
+          `[DailyMarket] ${id} 抓取失败 (${retries}次重试后放弃):`,
+          (err as Error).message
+        )
+        return null
+      }
+      // 指数退避：1s, 2s, 4s
+      const delay = Math.pow(2, attempt - 1) * 1000
+      console.warn(
+        `[DailyMarket] ${id} 第${attempt}次失败，${delay}ms后重试:`,
+        (err as Error).message
+      )
+      await new Promise(r => setTimeout(r, delay))
     }
+  }
+  return null
+}
+
+// ─── 从 Binance 抓取全量日线数据 ───
+async function fetchAllDailyOHLCV(date: string): Promise<ComputedMarket[]> {
+  const exchange = await getBinanceFuture()
+  const allMarkets = Object.values(exchange.markets) as MarketMeta[]
+  const markets = allMarkets.filter(
+    m => m.active && m.swap && m.linear && m.quote === 'USDT'
+  )
+
+  const symbols = markets.map(m => m.id)
+  const dateUtc = new Date(`${date}T00:00:00.000Z`)
+  const since = dateUtc.getTime()
+
+  // 第一轮：并发抓取（带重试）
+  const ohlcvResults = await asyncPool(symbols, 10, async (id: string) => {
+    return fetchSingleOHLCVWithRetry(exchange, id, markets, since, 3)
   })
+
+  // 统计失败数量
+  const failedSymbols = symbols.filter((_, i) => !ohlcvResults[i])
+  if (failedSymbols.length > 0) {
+    console.warn(
+      `[DailyMarket] 首轮抓取完成，${failedSymbols.length}/${symbols.length} 个币种失败`,
+      failedSymbols.slice(0, 20).join(', ') +
+        (failedSymbols.length > 20 ? `... (共${failedSymbols.length}个)` : '')
+    )
+
+    // 第二轮：对失败的币种逐个低速重试
+    console.log(
+      `[DailyMarket] 开始第二轮低速重试 ${failedSymbols.length} 个...`
+    )
+    for (const id of failedSymbols) {
+      await new Promise(r => setTimeout(r, 500))
+      const retried = await fetchSingleOHLCVWithRetry(
+        exchange,
+        id,
+        markets,
+        since,
+        2
+      )
+      if (retried) {
+        const idx = symbols.indexOf(id)
+        ohlcvResults[idx] = retried
+      }
+    }
+  }
 
   // 计算指标（不含排名）
   const computed: Omit<
