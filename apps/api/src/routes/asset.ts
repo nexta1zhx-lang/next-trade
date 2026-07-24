@@ -37,12 +37,16 @@ router.use('*', async (c, next) => {
 
 const snapshotsQuerySchema = z.object({
   apiKeyId: z.coerce.number().optional(),
-  days: z.coerce.number().min(1).max(365).default(30)
+  days: z.coerce.number().min(1).max(365).default(30),
+  includeReconstructed: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform(v => v !== 'false')
 })
 
 router.get('/snapshots', zValidator('query', snapshotsQuerySchema), async c => {
   const userId = (c as any).get('userId') as number
-  const {apiKeyId, days} = c.req.valid('query')
+  const {apiKeyId, days, includeReconstructed} = c.req.valid('query')
 
   if (apiKeyId) {
     // 验证该 Key 归属当前用户
@@ -58,7 +62,7 @@ router.get('/snapshots', zValidator('query', snapshotsQuerySchema), async c => {
 
     if (!key) return c.json({success: false, error: 'API Key not found'}, 404)
 
-    const rows = await getSnapshots(apiKeyId, days)
+    const rows = await getSnapshots(apiKeyId, days, includeReconstructed)
     const snapshots: AssetSnapshot[] = rows.map(r => ({
       snapDate: r.snapDate,
       totalEquity: Number(r.totalEquity),
@@ -97,7 +101,7 @@ router.get('/snapshots', zValidator('query', snapshotsQuerySchema), async c => {
     snapshots: AssetSnapshot[]
   }> = []
   for (const key of userKeys) {
-    const rows = await getSnapshots(key.id, days)
+    const rows = await getSnapshots(key.id, days, includeReconstructed)
     const snapshots: AssetSnapshot[] = rows.map(r => ({
       snapDate: r.snapDate,
       totalEquity: Number(r.totalEquity),
@@ -245,26 +249,65 @@ router.post('/collect/:apiKeyId', async c => {
 })
 
 // ═══════════════════════════════════════════
-// POST /api/asset/sync — 拉取币安 SAPI 历史快照（30 天）
+// POST /api/asset/sync — 拉取币安 SAPI 历史快照（仅首次执行一次）
 // ═══════════════════════════════════════════
+
+import {assetSnapshots} from '../db/schema.js'
+import {desc} from 'drizzle-orm'
+
+async function hasReconstructedData(apiKeyId: number): Promise<boolean> {
+  const [row] = await db
+    .select({id: assetSnapshots.id})
+    .from(assetSnapshots)
+    .where(
+      and(
+        eq(assetSnapshots.apiKeyId, apiKeyId),
+        eq(assetSnapshots.isReconstructed, true)
+      )
+    )
+    .limit(1)
+  return !!row
+}
 
 router.post('/sync', async c => {
   const userId = (c as any).get('userId') as number
 
-  // 先采集当前快照
-  await collectAllUserKeys(userId)
+  // 检查每个 Key 是否已有历史快照
+  const keys = await db
+    .select({id: apiKeys.id})
+    .from(apiKeys)
+    .where(
+      and(
+        eq(apiKeys.userId, userId),
+        eq(apiKeys.exchangeId, 'binance'),
+        eq(apiKeys.status, 'ACTIVE')
+      )
+    )
 
-  // 再拉取历史 SAPI 快照
-  const results = await syncAllKeys(userId)
-
-  if (results.length === 0) {
-    return c.json({success: false, error: '同步失败，请检查服务端日志'}, 400)
+  const results: Array<{
+    apiKeyId: number
+    snapshots: number
+    skipped: boolean
+  }> = []
+  for (const k of keys) {
+    const alreadyDone = await hasReconstructedData(k.id)
+    if (alreadyDone) {
+      results.push({apiKeyId: k.id, snapshots: 0, skipped: true})
+      continue
+    }
+    // 先采集当前快照
+    await collectAssetSnapshot(k.id)
+    // 再拉取历史 SAPI 快照
+    const {syncHistoricalSnapshots} = await import('../services/syncService.js')
+    const r = await syncHistoricalSnapshots(k.id)
+    results.push({apiKeyId: k.id, snapshots: r.snapshots, skipped: false})
   }
 
-  return c.json({
-    success: true,
-    data: results
-  })
+  if (results.length === 0) {
+    return c.json({success: false, error: '没有找到 Binance Key'}, 400)
+  }
+
+  return c.json({success: true, data: results})
 })
 
 router.post('/sync/:apiKeyId', async c => {
@@ -279,13 +322,21 @@ router.post('/sync/:apiKeyId', async c => {
 
   if (!key) return c.json({success: false, error: 'API Key not found'}, 404)
 
-  // 先采集当前快照
-  await collectAssetSnapshot(apiKeyId)
+  // 已同步过则跳过
+  if (await hasReconstructedData(apiKeyId)) {
+    return c.json({
+      success: true,
+      data: {apiKeyId, snapshots: 0, skipped: true}
+    })
+  }
 
-  // 再拉取历史 SAPI 快照
+  await collectAssetSnapshot(apiKeyId)
   const {syncHistoricalSnapshots} = await import('../services/syncService.js')
   const result = await syncHistoricalSnapshots(apiKeyId)
-  return c.json({success: true, data: result})
+  return c.json({
+    success: true,
+    data: {apiKeyId, snapshots: result.snapshots, skipped: false}
+  })
 })
 
 export {router as assetRouter}

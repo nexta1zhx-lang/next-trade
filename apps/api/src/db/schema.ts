@@ -381,6 +381,12 @@ export const userConfig = pgTable('user_config', {
     .default(20000000)
     .notNull(),
 
+  /** 资产展示法币: USD | CNY | EUR | JPY | GBP */
+  currency: varchar('currency', {length: 10}).default('USD').notNull(),
+
+  /** 是否自动同步历史资产快照 */
+  assetAutoSync: integer('asset_auto_sync').default(1).notNull(),
+
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 })
 

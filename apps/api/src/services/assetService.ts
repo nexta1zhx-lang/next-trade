@@ -542,11 +542,20 @@ export interface SnapshotRow {
  */
 export async function getSnapshots(
   apiKeyId: number,
-  days = 30
+  days = 30,
+  includeReconstructed = true
 ): Promise<SnapshotRow[]> {
   const cutoff = new Date()
   cutoff.setUTCDate(cutoff.getUTCDate() - days)
   const cutoffStr = cutoff.toISOString().slice(0, 10)
+
+  const conditions = [
+    eq(assetSnapshots.apiKeyId, apiKeyId),
+    sql`${assetSnapshots.snapDate} >= ${cutoffStr}`
+  ]
+  if (!includeReconstructed) {
+    conditions.push(eq(assetSnapshots.isReconstructed, false))
+  }
 
   const rows = await db
     .select({
@@ -561,12 +570,7 @@ export async function getSnapshots(
       marginDebt: assetSnapshots.marginDebt
     })
     .from(assetSnapshots)
-    .where(
-      and(
-        eq(assetSnapshots.apiKeyId, apiKeyId),
-        sql`${assetSnapshots.snapDate} >= ${cutoffStr}`
-      )
-    )
+    .where(and(...conditions))
     .orderBy(desc(assetSnapshots.snapDate))
 
   return rows

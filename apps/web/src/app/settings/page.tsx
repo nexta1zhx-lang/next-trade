@@ -16,6 +16,8 @@ interface UserConfig {
   klineInterval: number
   allMinQuoteVolume: number
   dailyMinQuoteVolume: number
+  currency?: string
+  assetAutoSync?: number
 }
 
 export default function SettingsPage() {
@@ -344,6 +346,62 @@ export default function SettingsPage() {
                 <span>200M</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ─── 显示注册前历史 ─── */}
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium text-foreground">
+                显示注册前历史
+              </label>
+              <p className="text-xs text-muted-foreground mt-0.5 mt-1">
+                是否在资产曲线上显示注册前的历史快照数据
+              </p>
+            </div>
+            <button
+              onClick={() =>
+                setConfig(prev =>
+                  prev
+                    ? {...prev, assetAutoSync: prev.assetAutoSync ? 0 : 1}
+                    : null
+                )
+              }
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                config?.assetAutoSync ? 'bg-primary' : 'bg-gray-600'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                  config?.assetAutoSync ? 'translate-x-5' : ''
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* ─── 法币设置 ─── */}
+        <div className="bg-card border border-border rounded-xl p-5">
+          <label className="text-sm font-medium text-foreground block mb-3">
+            资产展示法币
+          </label>
+          <div className="flex gap-2">
+            {['USD', 'CNY', 'EUR', 'JPY', 'GBP'].map(c => (
+              <button
+                key={c}
+                onClick={() =>
+                  setConfig(prev => (prev ? {...prev, currency: c} : null))
+                }
+                className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                  config?.currency === c
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/30'
+                }`}
+              >
+                {c}
+              </button>
+            ))}
           </div>
         </div>
       </div>

@@ -19,7 +19,9 @@ const defaults = {
   klineMode: 'polling' as const,
   klineInterval: 10000,
   allMinQuoteVolume: 0,
-  dailyMinQuoteVolume: 20000000
+  dailyMinQuoteVolume: 20000000,
+  currency: 'USD',
+  assetAutoSync: 1
 }
 
 // GET /api/user/config
@@ -42,7 +44,9 @@ const updateSchema = z.object({
   klineMode: z.enum(['ws', 'polling']).optional(),
   klineInterval: z.number().int().min(1000).max(300000).optional(),
   allMinQuoteVolume: z.number().int().min(0).max(200000000).optional(),
-  dailyMinQuoteVolume: z.number().int().min(0).max(200000000).optional()
+  dailyMinQuoteVolume: z.number().int().min(0).max(200000000).optional(),
+  currency: z.enum(['USD', 'CNY', 'EUR', 'JPY', 'GBP']).optional(),
+  assetAutoSync: z.number().int().min(0).max(1).optional()
 })
 
 // PUT /api/user/config

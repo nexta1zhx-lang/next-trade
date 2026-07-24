@@ -8,13 +8,17 @@ export interface UserConfig {
   klineInterval: number
   allMinQuoteVolume: number
   dailyMinQuoteVolume: number
+  currency?: string
+  assetAutoSync?: number
 }
 
 const defaults: UserConfig = {
   klineMode: 'polling',
   klineInterval: 10000,
   allMinQuoteVolume: 0,
-  dailyMinQuoteVolume: 20000000
+  dailyMinQuoteVolume: 20000000,
+  currency: 'USD',
+  assetAutoSync: 1
 }
 
 export function useUserConfig(): UserConfig {

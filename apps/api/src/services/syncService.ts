@@ -21,12 +21,16 @@ function signQuery(queryString: string, secret: string): string {
   return createHmac('sha256', secret).update(queryString).digest('hex')
 }
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
 async function signedGet<T>(
   apiKey: string,
   secret: string,
   path: string,
   params: Record<string, string> = {}
 ): Promise<T> {
+  // 限频：每次请求前等待 200ms
+  await sleep(200)
   const timestamp = String(Date.now())
   const searchParams = new URLSearchParams({...params, timestamp})
   const signature = signQuery(searchParams.toString(), secret)
