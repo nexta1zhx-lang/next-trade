@@ -326,6 +326,27 @@ export const assetSnapshots = pgTable(
       scale: 8
     }).default('0'),
 
+    /** 资金钱包余额（USDT） */
+    fundingValue: numeric('funding_value', {
+      precision: 24,
+      scale: 8
+    }).default('0'),
+
+    /** 理财持仓价值（USDT，按面值+应计利息） */
+    earnValue: numeric('earn_value', {precision: 24, scale: 8}).default('0'),
+
+    /** 杠杆账户净资产（USDT） */
+    marginEquity: numeric('margin_equity', {
+      precision: 24,
+      scale: 8
+    }).default('0'),
+
+    /** 杠杆账户总负债（USDT） */
+    marginDebt: numeric('margin_debt', {precision: 24, scale: 8}).default('0'),
+
+    /** 各模块详细余额快照（JSON，含各币种明细） */
+    details: jsonb('details').default('{}'),
+
     /** 快照时间 */
     snapshotAt: timestamp('snapshot_at').notNull(),
     /** 是否由历史逆向推演生成（非实时快照） */

@@ -2,6 +2,7 @@ import {getRequestListener} from '@hono/node-server'
 import {createServer} from 'node:http'
 import {WebSocketServer, WebSocket as WsClient} from 'ws'
 import {HttpsProxyAgent} from 'https-proxy-agent'
+import {ProxyAgent, setGlobalDispatcher} from 'undici'
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import {logger} from 'hono/logger'
@@ -15,8 +16,10 @@ import {v1KeysRouter} from './routes/v1/keys.js'
 import {v1TradesRouter} from './routes/v1/trades.js'
 import {userConfigRouter} from './routes/user-config.js'
 import {favoritesRouter} from './routes/favorites.js'
+import {assetRouter} from './routes/asset.js'
 import {authMiddleware} from './middleware/auth.js'
 import {collectAndStore} from './services/dailyMarketService.js'
+import {collectAllKeys} from './services/assetService.js'
 import {stream} from 'hono/streaming'
 import {startBinanceTicker, subscribeTicker} from './services/wsTicker.js'
 const app = new Hono()
@@ -65,6 +68,10 @@ app.route('/api/user/config', userConfigRouter)
 // ─── 自选币种路由（需登录） ───
 app.route('/api/favorites', favoritesRouter)
 
+// ─── 资产快照路由（需登录） ───
+app.use('/api/asset/*', authMiddleware)
+app.route('/api/asset', assetRouter)
+
 // ─── SSE 行情推送（用于实时盯盘） ───
 app.get('/api/ticker/stream', async c => {
   c.header('Content-Type', 'text/event-stream')
@@ -92,6 +99,16 @@ async function main() {
     console.log('✓ Redis connected')
   } catch {
     console.warn('⚠ Redis unavailable, running without cache')
+  }
+
+  // 全局代理（用于 undici fetch 访问币安 API）
+  if (config.HTTPS_PROXY) {
+    try {
+      setGlobalDispatcher(new ProxyAgent(config.HTTPS_PROXY))
+      console.log('✓ Global proxy set for Binance API')
+    } catch (err) {
+      console.warn('⚠ Failed to set proxy:', (err as Error).message)
+    }
   }
 
   const server = createServer()
@@ -176,6 +193,24 @@ async function main() {
     }
   )
   console.log('✓ Daily market data cron registered (UTC 00:05)')
+
+  // 注册资产快照定时采集任务 (UTC 00:10)
+  cron.schedule(
+    '10 0 * * *',
+    async () => {
+      console.log('[Cron] 触发资产快照采集任务...')
+      try {
+        const results = await collectAllKeys()
+        console.log(`[Cron] 资产快照采集完成: ${results.length} 个 Key`)
+      } catch (err) {
+        console.error('[Cron] 资产快照采集失败:', err)
+      }
+    },
+    {
+      timezone: 'UTC'
+    }
+  )
+  console.log('✓ Asset snapshot cron registered (UTC 00:10)')
 
   // 优雅退出（带强制兜底，确保 tsx watch 能正常重启）
   function shutdown() {

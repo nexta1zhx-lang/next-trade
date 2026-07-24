@@ -277,3 +277,51 @@ export interface FavoriteSymbolCreate {
   base: string
   date: string
 }
+
+// ─── 资产快照 ───
+export interface AssetSnapshot {
+  snapDate: string
+  totalEquity: number
+  spotValue: number
+  contractEquity: number
+  unrealizedPnl: number
+  fundingValue: number
+  earnValue: number
+  marginEquity: number
+  marginDebt: number
+}
+
+export interface AssetOverview {
+  apiKeyId: number
+  label: string
+  exchange: string
+  snapDate: string
+  totalEquity: number
+  spotValue: number
+  contractEquity: number
+  unrealizedPnl: number
+  fundingValue: number
+  earnValue: number
+  marginEquity: number
+  marginDebt: number
+}
+
+export interface AssetSnapshotResponse {
+  success: boolean
+  data?: {
+    keyId: number
+    label: string
+    snapshots: AssetSnapshot[]
+  }
+  error?: string
+}
+
+export interface AssetCollectResponse {
+  success: boolean
+  data?: {
+    apiKeyId: number
+    snapDate: string
+    totalEquity: number
+  }
+  error?: string
+}
