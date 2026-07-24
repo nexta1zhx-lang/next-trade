@@ -1,8 +1,6 @@
 import {getRequestListener} from '@hono/node-server'
 import {createServer} from 'node:http'
 import {WebSocketServer, WebSocket as WsClient} from 'ws'
-import {HttpsProxyAgent} from 'https-proxy-agent'
-import {ProxyAgent, setGlobalDispatcher} from 'undici'
 import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import {logger} from 'hono/logger'
@@ -106,16 +104,6 @@ async function main() {
     console.warn('⚠ Redis unavailable, running without cache')
   }
 
-  // 全局代理（用于 undici fetch 访问币安 API）
-  if (config.HTTPS_PROXY) {
-    try {
-      setGlobalDispatcher(new ProxyAgent(config.HTTPS_PROXY))
-      console.log('✓ Global proxy set for Binance API')
-    } catch (err) {
-      console.warn('⚠ Failed to set proxy:', (err as Error).message)
-    }
-  }
-
   const server = createServer()
   const wss = new WebSocketServer({noServer: true})
 
@@ -142,14 +130,9 @@ async function main() {
         .replace(':', '')
         .toLowerCase()
 
-      const binanceWs = config.HTTPS_PROXY
-        ? new WsClient(
-            `wss://fstream.binance.com/market/ws/${binanceSymbol}@kline_1m`,
-            {agent: new HttpsProxyAgent(config.HTTPS_PROXY)}
-          )
-        : new WsClient(
-            `wss://fstream.binance.com/market/ws/${binanceSymbol}@kline_1m`
-          )
+      const binanceWs = new WsClient(
+        `wss://fstream.binance.com/market/ws/${binanceSymbol}@kline_1m`
+      )
 
       // Binance 发 ping 时自动回复 pong（ws 库默认行为，显式确保）
       binanceWs.on('ping', (data: Buffer) => {

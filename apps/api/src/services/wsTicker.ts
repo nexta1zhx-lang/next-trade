@@ -9,8 +9,6 @@
  */
 
 import WebSocket from 'ws'
-import {HttpsProxyAgent} from 'https-proxy-agent'
-import {config} from '../config.js'
 import {getBinanceFuture} from './exchange.js'
 
 type TickerCallback = (
@@ -84,13 +82,7 @@ export function startBinanceTicker() {
   fetchAllTickers()
 
   const connect = () => {
-    const wsOptions = config.HTTPS_PROXY
-      ? {agent: new HttpsProxyAgent(config.HTTPS_PROXY)}
-      : undefined
-    ws = new WebSocket(
-      'wss://fstream.binance.com/ws/!miniTicker@arr',
-      wsOptions
-    )
+    ws = new WebSocket('wss://fstream.binance.com/ws/!miniTicker@arr')
 
     ws.on('open', () => {
       console.log('[wsTicker] Binance WS connected')

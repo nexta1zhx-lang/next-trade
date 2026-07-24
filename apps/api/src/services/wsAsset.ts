@@ -13,7 +13,6 @@
 
 import {createHmac} from 'node:crypto'
 import {WebSocket as WsClient} from 'ws'
-import {config} from '../config.js'
 import {redis} from './redis.js'
 
 const BASE_API = 'https://api.binance.com'

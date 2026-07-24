@@ -4,9 +4,6 @@ import type {ExchangeId, Ticker} from '@nexttrade/shared'
 
 const exchanges = new Map<string, Exchange>()
 
-// ─── 代理配置（国内访问交易所必需）───
-const proxyOptions = config.HTTPS_PROXY ? {httpsProxy: config.HTTPS_PROXY} : {}
-
 function getExchange(id: ExchangeId): Exchange {
   const key = `${id}-default`
   if (exchanges.has(key)) return exchanges.get(key)!
@@ -16,16 +13,14 @@ function getExchange(id: ExchangeId): Exchange {
     case 'binance':
       exchange = new ccxt.binance({
         apiKey: config.BINANCE_API_KEY,
-        secret: config.BINANCE_SECRET,
-        ...proxyOptions
+        secret: config.BINANCE_SECRET
       })
       break
     case 'okx':
       exchange = new ccxt.okx({
         apiKey: config.OKX_API_KEY,
         secret: config.OKX_SECRET,
-        password: config.OKX_PASSPHRASE,
-        ...proxyOptions
+        password: config.OKX_PASSPHRASE
       })
       break
     default:
@@ -55,9 +50,6 @@ export async function getBinanceFuture(): Promise<
       timeout: 30000,
       options: {defaultType: 'swap'}
     })
-    if (config.HTTPS_PROXY) {
-      ex.httpsProxy = config.HTTPS_PROXY
-    }
     await ex.loadMarkets()
     binanceFuture = ex
     loadingFuture = null

@@ -10,10 +10,6 @@
  */
 
 import ccxt, {type Exchange} from 'ccxt'
-import {config} from '../../config.js'
-
-// ─── 代理配置 ───
-const proxyOptions = config.HTTPS_PROXY ? {httpsProxy: config.HTTPS_PROXY} : {}
 
 function createExchange(
   exchangeId: string,
@@ -21,8 +17,7 @@ function createExchange(
 ): Exchange {
   const opts: Record<string, any> = {
     apiKey: credentials.apiKey,
-    secret: credentials.apiSecret,
-    ...proxyOptions
+    secret: credentials.apiSecret
   }
   if (credentials.passphrase) opts.password = credentials.passphrase
 

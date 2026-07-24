@@ -7,18 +7,23 @@
  * 总净资产 = Funding(资金) + Spot(现货) + Futures_U(U本位) + Futures_Coin(币本位) + Earn(理财)
  */
 
-import {ConfigurationRestAPI} from '@binance/common'
+import {
+  ConfigurationRestAPI,
+  SPOT_REST_API_PROD_URL,
+  WALLET_REST_API_PROD_URL,
+  SIMPLE_EARN_REST_API_PROD_URL,
+  DERIVATIVES_TRADING_USDS_FUTURES_REST_API_PROD_URL,
+  DERIVATIVES_TRADING_COIN_FUTURES_REST_API_PROD_URL
+} from '@binance/common'
 import {SpotRestAPI} from '@binance/spot'
 import {WalletRestAPI} from '@binance/wallet'
 import {SimpleEarnRestAPI} from '@binance/simple-earn'
 import {DerivativesTradingUsdsFuturesRestAPI} from '@binance/derivatives-trading-usds-futures'
 import {DerivativesTradingCoinFuturesRestAPI} from '@binance/derivatives-trading-coin-futures'
-import {HttpsProxyAgent} from 'https-proxy-agent'
-import {ProxyAgent, setGlobalDispatcher} from 'undici'
+
 import {db} from '../db/index.js'
 import {accountSnapshots, dailySummaries, apiKeys} from '../db/schema.js'
 import {eq, and, desc, sql} from 'drizzle-orm'
-import {config} from '../config.js'
 import {decrypt} from './crypto.js'
 import {redis} from './redis.js'
 
@@ -54,37 +59,42 @@ export interface CollectResult {
 
 // ─── SDK 工厂 ───
 
-function createConfig(apiKey: string, secret: string): ConfigurationRestAPI {
-  const cfg = new ConfigurationRestAPI({apiKey, apiSecret: secret})
-  if (config.HTTPS_PROXY) {
-    ;(cfg as any).baseOptions.httpsAgent = new HttpsProxyAgent(
-      config.HTTPS_PROXY
-    )
-  }
-  return cfg
+function createConfig(basePath: string) {
+  return (apiKey: string, secret: string) =>
+    new ConfigurationRestAPI({apiKey, apiSecret: secret, basePath})
 }
 
+const createSpotConfig = createConfig(SPOT_REST_API_PROD_URL)
+const createWalletConfig = createConfig(WALLET_REST_API_PROD_URL)
+const createEarnConfig = createConfig(SIMPLE_EARN_REST_API_PROD_URL)
+const createUsdsFuturesConfig = createConfig(
+  DERIVATIVES_TRADING_USDS_FUTURES_REST_API_PROD_URL
+)
+const createCoinFuturesConfig = createConfig(
+  DERIVATIVES_TRADING_COIN_FUTURES_REST_API_PROD_URL
+)
+
 function createSpotSDK(apiKey: string, secret: string) {
-  return new SpotRestAPI.RestAPI(createConfig(apiKey, secret))
+  return new SpotRestAPI.RestAPI(createSpotConfig(apiKey, secret))
 }
 
 function createWalletSDK(apiKey: string, secret: string) {
-  return new WalletRestAPI.RestAPI(createConfig(apiKey, secret))
+  return new WalletRestAPI.RestAPI(createWalletConfig(apiKey, secret))
 }
 
 function createEarnSDK(apiKey: string, secret: string) {
-  return new SimpleEarnRestAPI.RestAPI(createConfig(apiKey, secret))
+  return new SimpleEarnRestAPI.RestAPI(createEarnConfig(apiKey, secret))
 }
 
 function createUsdsFuturesSDK(apiKey: string, secret: string) {
   return new DerivativesTradingUsdsFuturesRestAPI.RestAPI(
-    createConfig(apiKey, secret)
+    createUsdsFuturesConfig(apiKey, secret)
   )
 }
 
 function createCoinFuturesSDK(apiKey: string, secret: string) {
   return new DerivativesTradingCoinFuturesRestAPI.RestAPI(
-    createConfig(apiKey, secret)
+    createCoinFuturesConfig(apiKey, secret)
   )
 }
 
@@ -186,10 +196,7 @@ async function fetchEarnLockedBalance(
 /** ⑦ 实时价格（无需认证，直接 fetch） */
 async function fetchPrices(): Promise<Record<string, string>> {
   const url = 'https://api.binance.com/api/v3/ticker/price'
-  const agent = config.HTTPS_PROXY
-    ? new ProxyAgent(config.HTTPS_PROXY)
-    : undefined
-  const res = await fetch(url, {dispatcher: agent} as any)
+  const res = await fetch(url)
   if (!res.ok) throw new Error(`Price API ${res.status}: ${await res.text()}`)
   const data = (await res.json()) as Array<{symbol: string; price: string}>
   const map: Record<string, string> = {}

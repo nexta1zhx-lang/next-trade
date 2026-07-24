@@ -5,22 +5,19 @@
  * 用于在 ROI/收益计算中剔除出入金干扰。
  */
 
-import {ConfigurationRestAPI} from '@binance/common'
+import {ConfigurationRestAPI, WALLET_REST_API_PROD_URL} from '@binance/common'
 import {WalletRestAPI} from '@binance/wallet'
-import {HttpsProxyAgent} from 'https-proxy-agent'
 import {db} from '../db/index.js'
 import {capitalFlows, apiKeys} from '../db/schema.js'
 import {eq, and, sql} from 'drizzle-orm'
 import {decrypt} from './crypto.js'
-import {config} from '../config.js'
 
 function createWalletSDK(apiKey: string, secret: string) {
-  const cfg = new ConfigurationRestAPI({apiKey, apiSecret: secret})
-  if (config.HTTPS_PROXY) {
-    ;(cfg as any).baseOptions.httpsAgent = new HttpsProxyAgent(
-      config.HTTPS_PROXY
-    )
-  }
+  const cfg = new ConfigurationRestAPI({
+    apiKey,
+    apiSecret: secret,
+    basePath: WALLET_REST_API_PROD_URL
+  })
   return new WalletRestAPI.RestAPI(cfg)
 }
 

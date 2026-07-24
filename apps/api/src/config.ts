@@ -29,8 +29,7 @@ const envSchema = z.object({
   OKX_SECRET: z.string().optional(),
   OKX_PASSPHRASE: z.string().optional(),
 
-  CORS_ORIGIN: z.string().default('http://localhost:3000'),
-  HTTPS_PROXY: z.string().optional() // 国内环境代理，如 http://127.0.0.1:7890
+  CORS_ORIGIN: z.string().default('http://localhost:3000')
 })
 
 export const config = envSchema.parse(process.env)
