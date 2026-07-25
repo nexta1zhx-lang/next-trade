@@ -34,9 +34,16 @@ const keyId = Number(
 )
 
 // ─── SDK 工具（与 assetService.ts 一致） ───
+const SDK_TIMEOUT = 15_000 // 15s
+
 function createConfig(basePath: string) {
   return (apiKey: string, secret: string) =>
-    new ConfigurationRestAPI({apiKey, apiSecret: secret, basePath})
+    new ConfigurationRestAPI({
+      apiKey,
+      apiSecret: secret,
+      basePath,
+      timeout: SDK_TIMEOUT
+    })
 }
 
 const spotCfg = createConfig(SPOT_REST_API_PROD_URL)
@@ -163,17 +170,29 @@ async function fetchFuturesUBalance(apiKey: string, secret: string) {
   try {
     const res = await sdk.accountInformationV3()
     const ms = Date.now() - t
-    const d = (res.data as any) ?? {}
-    logRes(
-      'U本位合约 (accountInformationV3)',
-      {
-        totalWalletBalance: d.totalWalletBalance,
-        totalUnrealizedProfit: d.totalUnrealizedProfit,
-        totalMarginBalance: d.totalMarginBalance,
-        canTrade: d.canTrade
-      },
-      ms
+    console.log(`  ✅ U本位合约 (${ms}ms)`)
+    console.log(
+      `     🔍 res 顶层 key: ${Object.keys(res as object).join(', ')}`
     )
+    console.log(`     🔍 res.data 类型: ${typeof (res as any).data}`)
+    const rawData =
+      typeof (res as any).data === 'function'
+        ? await (res as any).data()
+        : (res as any).data
+    console.log(`     🔍 rawData 类型: ${typeof rawData}`)
+    console.log(`     🔍 rawData key: ${Object.keys(rawData ?? {}).join(', ')}`)
+    try {
+      console.log(
+        `     🔍 完整原始响应:\n${JSON.stringify(rawData, null, 2).slice(0, 3000)}`
+      )
+    } catch {
+      console.log(`     (JSON.stringify 失败)`)
+    }
+    console.log(`     → totalWalletBalance=${rawData?.totalWalletBalance}`)
+    console.log(
+      `     → totalUnrealizedProfit=${rawData?.totalUnrealizedProfit}`
+    )
+    const d = rawData ?? {}
     return {
       walletBalance: String(d.totalWalletBalance ?? '0'),
       unrealizedPnl: String(d.totalUnrealizedProfit ?? '0')
@@ -199,20 +218,44 @@ async function fetchFuturesCoinBalance(apiKey: string, secret: string) {
   try {
     const res = await sdk.accountInformation()
     const ms = Date.now() - t
-    const d = (res.data as any) ?? {}
-    logRes(
-      '币本位合约 (accountInformation)',
-      {
-        totalWalletBalance: d.totalWalletBalance,
-        totalUnrealizedProfit: d.totalUnrealizedProfit,
-        totalMarginBalance: d.totalMarginBalance,
-        canTrade: d.canTrade
-      },
-      ms
+    console.log(`  ✅ 币本位合约 (${ms}ms)`)
+    console.log(
+      `     🔍 res 顶层 key: ${Object.keys(res as object).join(', ')}`
     )
+    console.log(`     🔍 res.data 类型: ${typeof (res as any).data}`)
+    const rawData =
+      typeof (res as any).data === 'function'
+        ? await (res as any).data()
+        : (res as any).data
+    console.log(`     🔍 rawData 类型: ${typeof rawData}`)
+    console.log(`     🔍 rawData key: ${Object.keys(rawData ?? {}).join(', ')}`)
+    try {
+      console.log(
+        `     🔍 完整原始响应:\n${JSON.stringify(rawData, null, 2).slice(0, 3000)}`
+      )
+    } catch {
+      console.log(`     (JSON.stringify 失败)`)
+    }
+    console.log(`     → totalWalletBalance=${rawData?.totalWalletBalance}`)
+    console.log(
+      `     → totalUnrealizedProfit=${rawData?.totalUnrealizedProfit}`
+    )
+    // 币本位合约没有顶层 total* 字段，需从 assets 汇总
+    const assets: Array<{
+      asset: string
+      walletBalance: string
+      unrealizedProfit: string
+    }> = rawData?.assets ?? []
+    let totalWallet = 0,
+      totalUpnl = 0
+    for (const a of assets) {
+      totalWallet += Number(a.walletBalance ?? 0)
+      totalUpnl += Number(a.unrealizedProfit ?? 0)
+    }
+    const d = rawData ?? {}
     return {
-      walletBalance: String(d.totalWalletBalance ?? '0'),
-      unrealizedPnl: String(d.totalUnrealizedProfit ?? '0')
+      walletBalance: d.totalWalletBalance ?? String(totalWallet),
+      unrealizedPnl: d.totalUnrealizedProfit ?? String(totalUpnl)
     }
   } catch (e: any) {
     console.log(`  ❌ 币本位合约 (${Date.now() - t}ms)`)
@@ -374,8 +417,8 @@ async function main() {
   console.log(
     `  ✅ API Key: ${rawApiKey.slice(0, 4)}****${rawApiKey.slice(-4)}`
   )
-  console.log(`  📛 备注: ${keyRecord.label ?? '(无)'}`)
-  console.log(`  🏛 交易所: ${keyRecord.exchange}`)
+  console.log(`  📛 备注: ${keyRecord.accountLabel ?? '(无)'}`)
+  console.log(`  🏛 交易所: ${keyRecord.exchangeId}`)
 
   // 2. 拉取实时价格
   logDiv('① 拉取实时价格')

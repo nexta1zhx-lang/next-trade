@@ -1,0 +1,5 @@
+uid=2_0 RootWebArea url="http://localhost:3001/health"
+  uid=2_1 StaticText "{"status":"ok","timestamp":1784909269779}"
+  uid=2_2 form
+    uid=2_3 StaticText "美观输出"
+    uid=2_4 checkbox "美观输出"

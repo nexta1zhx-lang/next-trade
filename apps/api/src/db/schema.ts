@@ -8,7 +8,7 @@
  *   api_keys           — 交易所 API Key（敏感字段 AES-256-GCM 加密存储）
  *   trades             — 标准化成交流水（UNIQUE 联合约束防重）
  *   daily_pnl_summary  — 日汇总盈亏预聚合
- *   account_snapshots  — 5分钟高频资产快照（资产模块核心）
+ *   account_snapshots  — 每小时资产快照（资产模块核心）
  *   daily_summaries    — 每日资产极值归档（资产K线图）
  *   capital_flows      — 出入金流水
  */
@@ -236,7 +236,7 @@ export const dailyPnlSummary = pgTable(
 )
 
 // ═══════════════════════════════════════════
-// 5分钟高频资产快照表（资产模块核心表）
+// 每小时资产快照表（资产模块核心表）
 // ═══════════════════════════════════════════
 // 总净资产 = fundingVal + spotVal + futuresUVal + futuresCoinVal + earnVal
 export const accountSnapshots = pgTable(

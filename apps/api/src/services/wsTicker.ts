@@ -1,52 +1,99 @@
 /**
- * WebSocket 行情推送服务
+ * WebSocket 行情推送服务 — 直连 Binance 版
  *
- * 连接交易所公共 WebSocket，收到 ticker 后通过 Server-Sent Events (SSE)
- * 推送给前端。无需 API Key，完全免费。
+ * 使用 ws 库直连 Binance USDT 永续合约公共 WebSocket (!miniTicker@arr)，
+ * 收到 ticker 后格式化并通过 subscribers 推送给前端 SSE。
  *
- * 支持的交易所:
- *   - Binance 合约: wss://fstream.binance.com/ws/!miniTicker@arr
+ * 数据流:
+ *   Binance WS (!miniTicker@arr)
+ *     → ws 直连 → 解析 JSON → 格式化 ticker
+ *     → subscribers (SSE 端点)
+ *     → 前端 EventSource
+ *
+ * URL: wss://stream.binance.com:9443/ws/!miniTicker@arr
+ * 数据格式(单流): [{e:"24hrMiniTicker",E:...,s:"BTCUSDT",c:"...",o:"...",...}, ...]
  */
 
 import WebSocket from 'ws'
 import {getBinanceFuture} from './exchange.js'
 
-type TickerCallback = (
-  tickers: Array<{
-    symbol: string
-    price: string
-    open: string
-    change: string
-    volume: string
-    quoteVol: string
-    high: string
-    low: string
-  }>
-) => void
+// ─── 类型 ───
+
+export interface TickerData {
+  symbol: string
+  price: string
+  open: string
+  change: string
+  volume: string
+  quoteVol: string
+  high: string
+  low: string
+}
+
+type TickerCallback = (tickers: TickerData[]) => void
+
+/** Binance miniTicker 24hr 原始数据项 */
+interface MiniTickerRaw {
+  e: string
+  E: number
+  s: string
+  c: string
+  o: string
+  h: string
+  l: string
+  v: string
+  q: string
+}
+
+// ─── 状态 ───
 
 let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let subscribers = new Set<TickerCallback>()
 
-/** 一次性通过 REST 拉取全量 ticker 并推给订阅者（复用 exchange.ts 中已缓存 loadMarkets 的实例） */
+const WS_URL = 'wss://stream.binance.com:9443/ws/!miniTicker@arr'
+const RECONNECT_DELAY = 5000
+
+// ─── 工具 ───
+
+/** 将 Binance miniTicker 数据格式化为统一 TickerData */
+function formatTickers(raw: MiniTickerRaw[]): TickerData[] {
+  return raw.map(t => {
+    const price = Number(t.c)
+    const open = Number(t.o)
+    const change = open > 0 ? ((price - open) / open) * 100 : 0
+    return {
+      symbol: t.s,
+      price: t.c,
+      open: t.o,
+      change: change.toFixed(2),
+      volume: t.v,
+      quoteVol: t.q,
+      high: t.h,
+      low: t.l
+    }
+  })
+}
+
+/** 推数据给所有订阅者 */
+function broadcast(tickers: TickerData[]) {
+  for (const cb of subscribers) {
+    try {
+      cb(tickers)
+    } catch {}
+  }
+}
+
+// ─── REST 初始拉取（快照） ───
+
 async function fetchAllTickers() {
   try {
     const exchange = await getBinanceFuture()
     const tickers = await exchange.fetchTickers()
-    const result: Array<{
-      symbol: string
-      price: string
-      open: string
-      change: string
-      volume: string
-      quoteVol: string
-      high: string
-      low: string
-    }> = []
+    const result: TickerData[] = []
 
     for (const [symbol, t] of Object.entries(tickers)) {
       if (!t.last || !t.open) continue
-      // 只保留 USDT 永续 (symbol 格式如 BTC/USDT:USDT)
       if (!symbol.endsWith('/USDT:USDT')) continue
       const change = t.open > 0 ? ((t.last - t.open) / t.open) * 100 : 0
       result.push({
@@ -63,89 +110,96 @@ async function fetchAllTickers() {
 
     if (result.length > 0) {
       console.log(`[wsTicker] REST 初始拉取 ${result.length} 个币种`)
-      for (const cb of subscribers) {
-        try {
-          cb(result)
-        } catch {}
-      }
+      broadcast(result)
     }
   } catch (err) {
     console.error('[wsTicker] REST 初始拉取失败:', (err as Error).message)
   }
 }
 
-/** 启动 Binance 迷你 ticker 流 */
-export function startBinanceTicker() {
-  if (ws) return // 已连接
+// ─── WS 消息处理 ───
 
-  // 先 REST 拉取全量
+/** 处理 Binance 推送的 miniTicker 原始数据 */
+function handleMessage(data: WebSocket.Data) {
+  try {
+    const raw = JSON.parse(data.toString())
+    // 单流 !miniTicker@arr 直接返回数组
+    if (Array.isArray(raw)) {
+      broadcast(formatTickers(raw as MiniTickerRaw[]))
+    }
+  } catch {}
+}
+
+// ─── WS 连接管理 ───
+
+/** 创建 WebSocket 连接 */
+function createConnection() {
+  if (ws) cleanup()
+
+  ws = new WebSocket(WS_URL)
+
+  ws.on('open', () => {
+    console.log('[wsTicker] WebSocket connected')
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+  })
+
+  ws.on('message', handleMessage)
+
+  ws.on('close', () => {
+    console.log('[wsTicker] WebSocket closed')
+    ws = null
+    scheduleReconnect()
+  })
+
+  ws.on('error', err => {
+    console.error('[wsTicker] WebSocket error:', err.message)
+  })
+}
+
+/** 清理当前连接 */
+function cleanup() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  if (ws) {
+    // 先挂一个空的 error 处理器，防止 close() 时连接未建立触发未捕获异常
+    ws.on('error', () => {})
+    ws.removeAllListeners()
+    ws.close()
+    ws = null
+  }
+}
+
+/** 调度断线重连 */
+function scheduleReconnect() {
+  if (subscribers.size === 0) return
+  if (reconnectTimer) return
+  console.log(`[wsTicker] ${RECONNECT_DELAY}ms 后重连...`)
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    createConnection()
+  }, RECONNECT_DELAY)
+}
+
+// ─── 公开 API ───
+
+/** 启动 Binance WebSocket 迷你 ticker 流 */
+export function startBinanceTicker() {
+  if (ws?.readyState === WebSocket.OPEN) return // 已连接
+
+  // 先 REST 拉取全量快照
   fetchAllTickers()
 
-  const connect = () => {
-    ws = new WebSocket('wss://fstream.binance.com/ws/!miniTicker@arr')
-
-    ws.on('open', () => {
-      console.log('[wsTicker] Binance WS connected')
-    })
-
-    ws.on('message', (data: Buffer) => {
-      try {
-        const raw: Array<{
-          e: string
-          E: number
-          s: string
-          c: string
-          o: string
-          h: string
-          l: string
-          v: string
-          q: string
-        }> = JSON.parse(data.toString())
-
-        const tickers = raw.map(t => {
-          const price = Number(t.c)
-          const open = Number(t.o)
-          const change = open > 0 ? ((price - open) / open) * 100 : 0
-          return {
-            symbol: t.s,
-            price: t.c,
-            open: t.o,
-            change: change.toFixed(2),
-            volume: t.v,
-            quoteVol: t.q,
-            high: t.h,
-            low: t.l
-          }
-        })
-
-        for (const cb of subscribers) {
-          try {
-            cb(tickers)
-          } catch {}
-        }
-      } catch {}
-    })
-
-    ws.on('close', () => {
-      console.log('[wsTicker] Binance WS disconnected, reconnecting in 5s...')
-      ws = null
-      reconnectTimer = setTimeout(connect, 5000)
-    })
-
-    ws.on('error', err => {
-      console.error('[wsTicker] Binance WS error:', err.message)
-      ws?.close()
-    })
-  }
-
-  connect()
+  createConnection()
 }
 
 /** 停止连接 */
 export function stopBinanceTicker() {
-  if (reconnectTimer) clearTimeout(reconnectTimer)
-  ws?.close()
-  ws = null
+  cleanup()
 }
 
 /** 订阅 ticker 推送 */

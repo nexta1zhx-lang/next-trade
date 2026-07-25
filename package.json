@@ -6,7 +6,8 @@
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "clean": "pnpm -r run clean",
-    "db:push": "pnpm --filter @nexttrade/api run db:push"
+    "db:push": "pnpm --filter @nexttrade/api run db:push",
+    "docker-d": "docker compose up -d"
   },
   "engines": {
     "node": ">=20",

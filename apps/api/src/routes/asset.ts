@@ -4,7 +4,7 @@
  * GET    /api/asset/current              — 当前最新资产（Redis 缓存）
  * GET    /api/asset/today                — 今日极值 + 分时数据
  * GET    /api/asset/history?days=90      — 历史日 K 线 OHLC
- * GET    /api/asset/detail?apiKeyId=&since= — 历史 5 分钟快照明细
+ * GET    /api/asset/detail?apiKeyId=&since= — 历史每小时快照明细
  * POST   /api/asset/collect              — 手动触发采集（当前用户所有 Key）
  * POST   /api/asset/collect/:apiKeyId    — 手动触发指定 Key 采集
  */
@@ -213,7 +213,7 @@ router.get('/history', zValidator('query', historyQuerySchema), async c => {
 })
 
 // ═══════════════════════════════════════════
-// GET /api/asset/detail — 历史 5 分钟快照明细
+// GET /api/asset/detail — 历史每小时快照明细
 // ═══════════════════════════════════════════
 
 const detailQuerySchema = z.object({

@@ -59,9 +59,16 @@ export interface CollectResult {
 
 // ─── SDK 工厂 ───
 
+const SDK_TIMEOUT = 15_000 // 15s，Binance API 响应较慢时需放宽超时
+
 function createConfig(basePath: string) {
   return (apiKey: string, secret: string) =>
-    new ConfigurationRestAPI({apiKey, apiSecret: secret, basePath})
+    new ConfigurationRestAPI({
+      apiKey,
+      apiSecret: secret,
+      basePath,
+      timeout: SDK_TIMEOUT
+    })
 }
 
 const createSpotConfig = createConfig(SPOT_REST_API_PROD_URL)
@@ -140,7 +147,12 @@ async function fetchFuturesUBalance(
 ): Promise<{walletBalance: string; unrealizedPnl: string}> {
   const sdk = createUsdsFuturesSDK(apiKey, secret)
   const res = await sdk.accountInformationV3()
-  const d = (res.data as any) ?? {}
+  // 注意: 期货 SDK 的 res.data 是函数，需要 await 调用
+  const data =
+    typeof (res as any).data === 'function'
+      ? await (res as any).data()
+      : (res as any).data
+  const d = data ?? {}
   return {
     walletBalance: d.totalWalletBalance ?? '0',
     unrealizedPnl: d.totalUnrealizedProfit ?? '0'
@@ -154,10 +166,27 @@ async function fetchFuturesCoinBalance(
 ): Promise<{walletBalance: string; unrealizedPnl: string}> {
   const sdk = createCoinFuturesSDK(apiKey, secret)
   const res = await sdk.accountInformation()
-  const d = (res.data as any) ?? {}
+  // 注意: 期货 SDK 的 res.data 是函数，需要 await 调用
+  const data =
+    typeof (res as any).data === 'function'
+      ? await (res as any).data()
+      : (res as any).data
+  const d = data ?? {}
+  // 币本位合约没有顶层 totalWalletBalance，需从 assets 汇总
+  const assets: Array<{
+    asset: string
+    walletBalance: string
+    unrealizedProfit: string
+  }> = d.assets ?? []
+  let totalWallet = 0
+  let totalUpnl = 0
+  for (const a of assets) {
+    totalWallet += Number(a.walletBalance ?? 0)
+    totalUpnl += Number(a.unrealizedProfit ?? 0)
+  }
   return {
-    walletBalance: d.totalWalletBalance ?? '0',
-    unrealizedPnl: d.totalUnrealizedProfit ?? '0'
+    walletBalance: d.totalWalletBalance ?? String(totalWallet),
+    unrealizedPnl: d.totalUnrealizedProfit ?? String(totalUpnl)
   }
 }
 
@@ -369,6 +398,12 @@ export async function collectAssetSnapshot(
     earnVal,
     snapshotAt: snapshotAt.toISOString()
   })
+
+  // 更新 lastSyncAt，让前端显示正确的同步时间
+  await db
+    .update(apiKeys)
+    .set({lastSyncAt: snapshotAt, updatedAt: snapshotAt})
+    .where(eq(apiKeys.id, apiKeyId))
 
   return {
     apiKeyId,
