@@ -1,5 +1,7 @@
 import type {NextConfig} from 'next'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 const nextConfig: NextConfig = {
   transpilePackages: ['@nexttrade/shared'],
   allowedDevOrigins: ['192.168.31.130'],
@@ -7,12 +9,12 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:3001/api/:path*'
+        destination: `${API_URL}/api/:path*`
       },
-      // WebSocket 代理（局域网调试用）
+      // WebSocket 代理
       {
         source: '/ws',
-        destination: 'http://localhost:3001/ws'
+        destination: `${API_URL}/ws`
       }
     ]
   }
