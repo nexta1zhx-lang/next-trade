@@ -95,7 +95,7 @@ async function getUsdtSwapSymbols(): Promise<
   if (cachedSymbols) return cachedSymbols
 
   const data = await binanceGet('/fapi/v1/exchangeInfo')
-  cachedSymbols = (data.symbols ?? [])
+  const symbols = (data.symbols ?? [])
     .filter(
       (s: any) =>
         s.contractType === 'PERPETUAL' &&
@@ -104,8 +104,9 @@ async function getUsdtSwapSymbols(): Promise<
     )
     .map((s: any) => ({symbol: s.symbol, base: s.baseAsset}))
 
-  console.log(`[DailyMarket] USDT永续合约: ${cachedSymbols.length} 个`)
-  return cachedSymbols
+  cachedSymbols = symbols
+  console.log(`[DailyMarket] USDT永续合约: ${symbols.length} 个`)
+  return symbols
 }
 
 function resetSymbolCache() {
