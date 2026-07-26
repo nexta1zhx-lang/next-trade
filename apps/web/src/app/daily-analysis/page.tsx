@@ -280,23 +280,25 @@ export default function DailyAnalysisPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 h-screen flex flex-col overflow-hidden">
-      <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4 mb-4 shrink-0">
-        <div className="flex flex-wrap items-center gap-3">
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-dvh flex flex-col overflow-hidden">
+      <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4 mb-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">日期</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              日期
+            </span>
             <input
               type="date"
               value={date}
               max={yesterdayUTC()}
               onChange={e => setDate(e.target.value)}
-              className="bg-[#0a0a0b] border border-gray-700 rounded-lg px-2.5 py-1.5 text-sm text-gray-200
-                         focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark] w-36"
+              className="bg-[#0a0a0b] border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-gray-200
+                         focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark] w-32 sm:w-36"
             />
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center gap-1.5 bg-[#0a0a0b] border border-gray-700 rounded-lg px-2.5 py-1.5
+              className="flex items-center gap-1 bg-[#0a0a0b] border border-gray-700 rounded-lg px-2 py-1.5
                          text-xs text-gray-400 hover:text-primary hover:border-primary/40 transition-colors
                          disabled:opacity-50 disabled:cursor-not-allowed"
               title="手动刷新同步（跳过缓存，重新拉取 Binance 数据）"
@@ -304,10 +306,10 @@ export default function DailyAnalysisPage() {
               <RefreshCw
                 className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}
               />
-              刷新
+              <span className="hidden sm:inline">刷新</span>
             </button>
           </div>
-          <span className="ml-auto flex items-center gap-3">
+          <span className="ml-auto flex items-center gap-2 sm:gap-3">
             {clock && (
               <span className="text-xs font-mono tabular-nums text-gray-400">
                 {clock}
@@ -330,9 +332,9 @@ export default function DailyAnalysisPage() {
       )}
 
       {data && (
-        <div className="flex flex-col md:flex-row gap-4 flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row gap-3 lg:gap-4 flex-1 overflow-hidden">
           {/* 左栏 */}
-          <div className="w-full md:w-[280px] shrink-0 flex flex-col">
+          <div className="w-full md:w-[220px] lg:w-[280px] shrink-0 flex flex-col max-h-[40vh] md:max-h-none">
             {/* 搜索框 */}
             <div className="bg-[#18181b] rounded-xl border border-gray-800 overflow-hidden flex flex-col flex-1">
               <div className="px-3 pt-2 pb-1.5 shrink-0">
@@ -343,7 +345,7 @@ export default function DailyAnalysisPage() {
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="搜索币种..."
-                    className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200
+                    className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg pl-8 pr-3 py-2 md:py-1.5 text-xs text-gray-200
                                placeholder:text-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
                   />
                 </div>
@@ -842,7 +844,7 @@ export default function DailyAnalysisPage() {
           </div>
 
           {/* 右栏 */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 hidden md:block">
             {selectedItem ? (
               <SymbolDetail
                 item={selectedItem}
@@ -850,7 +852,7 @@ export default function DailyAnalysisPage() {
                 onClose={() => setSelectedItem(null)}
               />
             ) : (
-              <div className="bg-[#18181b] rounded-xl border border-gray-800 flex items-center justify-center min-h-[300px]">
+              <div className="bg-[#18181b] rounded-xl border border-gray-800 flex items-center justify-center min-h-[300px] h-full">
                 <div className="text-center text-gray-600">
                   <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
                   <p className="text-sm">点击左侧币种查看 K 线图与复盘</p>
@@ -858,6 +860,17 @@ export default function DailyAnalysisPage() {
               </div>
             )}
           </div>
+
+          {/* 手机端：选中币种时全屏显示详情 */}
+          {selectedItem && (
+            <div className="fixed inset-0 z-40 md:hidden bg-background">
+              <SymbolDetail
+                item={selectedItem}
+                selectedDate={date}
+                onClose={() => setSelectedItem(null)}
+              />
+            </div>
+          )}
         </div>
       )}
 

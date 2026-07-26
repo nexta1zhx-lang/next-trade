@@ -97,8 +97,12 @@ export default function SymbolDetail({
     hitId?: string
   } | null>(null)
   const chartAreaRef = useRef<HTMLDivElement>(null)
-  const [chartHeight, setChartHeight] = useState(400)
-  const prevHeightRef = useRef(400)
+  const [chartHeight, setChartHeight] = useState(() =>
+    typeof window !== 'undefined'
+      ? Math.min(window.innerHeight * 0.45, 400)
+      : 300
+  )
+  const prevHeightRef = useRef(chartHeight)
   const [crosshairInfo, setCrosshairInfo] = useState<CrosshairInfo | null>(null)
   const justSyncedRef = useRef(false)
   const loadedRef = useRef(false)
@@ -432,13 +436,15 @@ export default function SymbolDetail({
   return (
     <div className="rounded-xl bg-[#18181b] border border-gray-700/50 h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 pb-2 border-b border-gray-700/30 shrink-0">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-bold text-gray-100">
+      <div className="flex items-center justify-between p-3 md:p-4 pb-2 border-b border-gray-700/30 shrink-0 gap-2">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          <h3 className="text-base md:text-lg font-bold text-gray-100 shrink-0">
             {item.base}{' '}
-            <span className="text-sm text-gray-500 font-normal">/USDT</span>
+            <span className="text-xs md:text-sm text-gray-500 font-normal">
+              /USDT
+            </span>
           </h3>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
+          <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
             <span>
               O:
               <span className="text-gray-300 ml-1">{item.open.toFixed(4)}</span>
@@ -458,14 +464,21 @@ export default function SymbolDetail({
               </span>
             </span>
           </div>
+          {/* 手机上简化为 O/H/L/C */}
+          <div className="flex sm:hidden items-center gap-1 text-[10px] text-gray-500">
+            <span className="text-gray-400">{item.open.toFixed(2)}</span>
+            <span className="text-red-400">{item.high.toFixed(2)}</span>
+            <span className="text-green-400">{item.low.toFixed(2)}</span>
+            <span className="text-gray-300">{item.close.toFixed(2)}</span>
+          </div>
           <span
-            className={`text-xs font-medium ${item.change >= 0 ? 'text-green-400' : 'text-red-400'}`}
+            className={`text-xs font-medium shrink-0 ${item.change >= 0 ? 'text-green-400' : 'text-red-400'}`}
           >
             {item.change >= 0 ? '+' : ''}
             {item.change.toFixed(2)}%
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2 shrink-0">
           {/* 保存模式 */}
           <button
             onClick={toggleSaveMode}
@@ -489,7 +502,7 @@ export default function SymbolDetail({
           </button>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-300"
+            className="text-gray-500 hover:text-gray-300 p-1 -mr-1"
           >
             <X className="w-5 h-5" />
           </button>
@@ -497,19 +510,19 @@ export default function SymbolDetail({
       </div>
 
       {/* 图表区 */}
-      <div className="flex-[2] min-h-0 p-4 pb-2 flex flex-col">
-        <div className="flex items-center gap-1 mb-2 shrink-0">
+      <div className="flex-[2] min-h-0 p-3 md:p-4 pb-2 flex flex-col">
+        <div className="flex items-center gap-1 mb-2 shrink-0 flex-wrap">
           {TIMEFRAMES.map(tf => (
             <button
               key={tf}
               onClick={() => setTimeframe(tf)}
-              className={`text-xs px-2 py-0.5 rounded transition-colors ${timeframe === tf ? 'bg-primary/20 text-primary' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`text-xs px-2 py-1 md:py-0.5 rounded transition-colors ${timeframe === tf ? 'bg-primary/20 text-primary' : 'text-gray-500 hover:text-gray-300'}`}
             >
               {tf}
             </button>
           ))}
           {crosshairInfo && crosshairInfo.high > 0 && (
-            <span className="ml-auto flex items-center gap-2 text-[10px] text-gray-500">
+            <span className="ml-auto hidden lg:flex items-center gap-2 text-[10px] text-gray-500">
               <span>
                 振:
                 <span className="text-gray-300">

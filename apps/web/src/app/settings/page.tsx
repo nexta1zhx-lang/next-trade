@@ -77,18 +77,18 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+    <div className="max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-2">
         <div className="flex items-center gap-2">
-          <Settings2 className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-semibold">K 线刷新设置</h1>
+          <Settings2 className="w-5 h-5 text-primary shrink-0" />
+          <h1 className="text-base sm:text-lg font-semibold">K 线刷新设置</h1>
         </div>
         <button
           onClick={handleSave}
           disabled={saving || !config}
-          className="flex items-center gap-1.5 px-4 py-1.5 text-xs bg-primary text-primary-foreground
-                     rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
+          className="flex items-center gap-1.5 px-3 sm:px-4 py-2 sm:py-1.5 text-xs bg-primary text-primary-foreground
+                     rounded-lg hover:opacity-90 disabled:opacity-50 transition-all shrink-0"
         >
           {saving ? (
             <>
@@ -124,20 +124,20 @@ export default function SettingsPage() {
           <label className="text-sm font-medium text-foreground block mb-3">
             刷新模式
           </label>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <button
               onClick={() =>
                 setConfig(prev =>
                   prev ? {...prev, klineMode: 'polling'} : null
                 )
               }
-              className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all flex-1 ${
                 config?.klineMode === 'polling'
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-border text-muted-foreground hover:border-muted-foreground/30'
               }`}
             >
-              <RefreshCw className="w-5 h-5" />
+              <RefreshCw className="w-5 h-5 shrink-0" />
               <div className="text-left">
                 <div className="text-sm font-medium">轮询</div>
                 <div className="text-xs opacity-70 mt-0.5">
@@ -149,13 +149,13 @@ export default function SettingsPage() {
               onClick={() =>
                 setConfig(prev => (prev ? {...prev, klineMode: 'ws'} : null))
               }
-              className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all flex-1 ${
                 config?.klineMode === 'ws'
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-border text-muted-foreground hover:border-muted-foreground/30'
               }`}
             >
-              <Wifi className="w-5 h-5" />
+              <Wifi className="w-5 h-5 shrink-0" />
               <div className="text-left">
                 <div className="text-sm font-medium">WebSocket</div>
                 <div className="text-xs opacity-70 mt-0.5">交易所实时推送</div>
@@ -189,7 +189,7 @@ export default function SettingsPage() {
                       : null
                   )
                 }
-                className="w-20 bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-right
+                className="w-16 sm:w-20 bg-background border border-border rounded-lg px-2 sm:px-3 py-2 sm:py-1.5 text-sm text-right
                            font-mono tabular-nums text-foreground focus:outline-none focus:border-primary
                            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
                            [&::-webkit-inner-spin-button]:appearance-none"
@@ -254,7 +254,7 @@ export default function SettingsPage() {
                           : null
                       )
                     }
-                    className="w-20 bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-right
+                    className="w-16 sm:w-20 bg-background border border-border rounded-lg px-2 sm:px-3 py-2 sm:py-1.5 text-sm text-right
                                font-mono tabular-nums text-foreground focus:outline-none focus:border-primary
                                [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
                                [&::-webkit-inner-spin-button]:appearance-none"
@@ -315,7 +315,7 @@ export default function SettingsPage() {
                           : null
                       )
                     }
-                    className="w-20 bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-right
+                    className="w-16 sm:w-20 bg-background border border-border rounded-lg px-2 sm:px-3 py-2 sm:py-1.5 text-sm text-right
                                font-mono tabular-nums text-foreground focus:outline-none focus:border-primary
                                [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none
                                [&::-webkit-inner-spin-button]:appearance-none"

@@ -1,16 +1,17 @@
 /**
- * WebSocket 行情推送服务 — 直连 Binance 版
+ * WebSocket 行情推送服务 — 直连 Binance USDⓈ-M 永续合约版
  *
- * 使用 ws 库直连 Binance USDT 永续合约公共 WebSocket (!miniTicker@arr)，
+ * 使用 ws 库直连 Binance USDⓈ-M 期货公共 WebSocket (!miniTicker@arr)，
+ * 仅接收 USDT 永续合约的 ticker，不会混入现货数据。
  * 收到 ticker 后格式化并通过 subscribers 推送给前端 SSE。
  *
  * 数据流:
- *   Binance WS (!miniTicker@arr)
+ *   Binance Futures WS (!miniTicker@arr)
  *     → ws 直连 → 解析 JSON → 格式化 ticker
  *     → subscribers (SSE 端点)
  *     → 前端 EventSource
  *
- * URL: wss://stream.binance.com:9443/ws/!miniTicker@arr
+ * URL: wss://fstream.binance.com/ws/!miniTicker@arr
  * 数据格式(单流): [{e:"24hrMiniTicker",E:...,s:"BTCUSDT",c:"...",o:"...",...}, ...]
  */
 
@@ -51,7 +52,7 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let subscribers = new Set<TickerCallback>()
 
-const WS_URL = 'wss://stream.binance.com:9443/ws/!miniTicker@arr'
+const WS_URL = 'wss://fstream.binance.com/ws/!miniTicker@arr'
 const RECONNECT_DELAY = 5000
 
 // ─── 工具 ───
@@ -166,9 +167,8 @@ function cleanup() {
     reconnectTimer = null
   }
   if (ws) {
-    // 先挂一个空的 error 处理器，防止 close() 时连接未建立触发未捕获异常
-    ws.on('error', () => {})
     ws.removeAllListeners()
+    ws.on('error', () => {}) // close() 前挂 error 处理器，防止连接未建立时触发未捕获异常
     ws.close()
     ws = null
   }

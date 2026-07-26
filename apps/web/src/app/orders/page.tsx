@@ -274,51 +274,53 @@ export default function OrdersPage() {
 
   // ══════════════════════════════════════════
   return (
-    <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+    <div className="max-w-5xl mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-6">
       {/* 顶栏 */}
-      <div className="bg-[#18181b] rounded-xl border border-gray-800 p-4 mb-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Key className="w-5 h-5 text-primary" />
-            <h1 className="text-base font-semibold">API 密钥</h1>
-            <span className="text-xs text-muted-foreground">
+      <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <Key className="w-5 h-5 text-primary shrink-0" />
+            <h1 className="text-sm sm:text-base font-semibold truncate">
+              API 密钥
+            </h1>
+            <span className="text-[10px] sm:text-xs text-muted-foreground hidden sm:inline">
               @{user.username}
             </span>
-            <span className="text-[11px] text-muted-foreground">
-              {apiKeys.length} 个账户
+            <span className="text-[10px] sm:text-[11px] text-muted-foreground shrink-0">
+              {apiKeys.length} 个
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={() => setShowAddKey(!showAddKey)}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary
+              className="flex items-center gap-1 sm:gap-1.5 text-xs px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg bg-primary/10 text-primary
                          hover:bg-primary/20 transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
-              添加 Key
+              <span className="hidden sm:inline">添加 Key</span>
             </button>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg text-red-400
+              className="flex items-center gap-1 text-xs px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg text-red-400
                          hover:bg-red-500/10 transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
-              退出
+              <span className="hidden sm:inline">退出</span>
             </button>
           </div>
         </div>
 
         {/* 添加 Key 表单 */}
         {showAddKey && (
-          <div className="mt-4 pt-4 border-t border-gray-800">
-            <div className="flex flex-wrap items-end gap-3">
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-800">
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-end gap-2 sm:gap-3">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">备注名称</p>
                 <input
                   value={newKeyLabel}
                   onChange={e => setNewKeyLabel(e.target.value)}
                   placeholder="如: 主账户"
-                  className="w-28 bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
+                  className="w-full sm:w-28 bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
                              focus:outline-none focus:border-primary"
                 />
               </div>
@@ -327,7 +329,7 @@ export default function OrdersPage() {
                 <select
                   value={newKeyEx}
                   onChange={e => setNewKeyEx(e.target.value)}
-                  className="w-28 bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
+                  className="w-full sm:w-28 bg-[#0a0a0b] border border-gray-700 rounded-lg px-3 py-2 text-sm
                              focus:outline-none focus:border-primary text-gray-200"
                 >
                   {EXCHANGE_OPTIONS.map(opt => (
@@ -337,7 +339,7 @@ export default function OrdersPage() {
                   ))}
                 </select>
               </div>
-              <div className="flex-1 min-w-[160px]">
+              <div className="flex-1 min-w-0 sm:min-w-[160px]">
                 <p className="text-xs text-muted-foreground mb-1">API Key</p>
                 <input
                   value={newKey}
@@ -347,7 +349,7 @@ export default function OrdersPage() {
                              focus:outline-none focus:border-primary"
                 />
               </div>
-              <div className="flex-1 min-w-[160px]">
+              <div className="flex-1 min-w-0 sm:min-w-[160px]">
                 <p className="text-xs text-muted-foreground mb-1">Secret Key</p>
                 <input
                   type="password"
@@ -361,8 +363,8 @@ export default function OrdersPage() {
               <button
                 onClick={handleAddKey}
                 disabled={keyLoading || !newKey || !newSecret}
-                className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-primary text-white
-                           hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="flex items-center justify-center gap-1.5 text-xs px-4 py-2.5 sm:py-2 rounded-lg bg-primary text-white
+                           hover:bg-primary/90 disabled:opacity-50 transition-colors w-full sm:w-auto"
               >
                 <Key className="w-3.5 h-3.5" />
                 {keyLoading ? '校验中…' : '校验并保存'}
@@ -388,12 +390,12 @@ export default function OrdersPage() {
           {apiKeys.map(k => (
             <div
               key={k.id}
-              className="bg-[#18181b] rounded-xl border border-gray-800 p-4
+              className="bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4
                          hover:border-gray-700 transition-colors"
             >
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 {/* 交易所图标 */}
-                <ExchangeIcon exchange={k.exchange} size={22} />
+                <ExchangeIcon exchange={k.exchange} size={20} />
 
                 {/* 标签/编辑 */}
                 <div className="flex-1 min-w-0">
@@ -402,7 +404,7 @@ export default function OrdersPage() {
                       <input
                         value={editLabel}
                         onChange={e => setEditLabel(e.target.value)}
-                        className="w-36 bg-[#0a0a0b] border border-gray-700 rounded px-2 py-1 text-xs
+                        className="w-28 sm:w-36 bg-[#0a0a0b] border border-gray-700 rounded px-2 py-1 text-xs
                                    focus:outline-none focus:border-primary"
                         autoFocus
                       />
@@ -420,13 +422,13 @@ export default function OrdersPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate max-w-[120px]">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <span className="text-sm font-medium truncate max-w-[80px] sm:max-w-[120px]">
                         {k.label || k.exchange.toUpperCase()}
                       </span>
                       <button
                         onClick={() => handleStartEdit(k)}
-                        className="text-muted-foreground hover:text-foreground"
+                        className="text-muted-foreground hover:text-foreground p-0.5"
                       >
                         <Edit3 className="w-3 h-3" />
                       </button>
@@ -434,45 +436,44 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                {/* API Key 遮掩 */}
-                <span className="text-xs font-mono text-muted-foreground hidden sm:inline">
-                  {k.apiKey}
-                </span>
-
                 {/* 状态徽章 */}
                 <StatusBadge status={k.status} />
 
-                {/* 上次同步 */}
-                <span className="text-[10px] text-muted-foreground hidden md:inline">
-                  {k.lastSyncAt ? `同步: ${fmtTime(k.lastSyncAt)}` : '未同步'}
-                </span>
-
                 {/* 操作按钮 */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5 sm:gap-1">
                   {/* 暂停/恢复 */}
                   <button
                     onClick={() => handleTogglePause(k)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground
+                    className="p-2 sm:p-1.5 rounded-lg text-muted-foreground hover:text-foreground
                                hover:bg-muted/50 transition-colors"
                     title={k.status === 'ACTIVE' ? '暂停同步' : '恢复同步'}
                   >
                     {k.status === 'ACTIVE' ? (
-                      <Pause className="w-3.5 h-3.5" />
+                      <Pause className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                     ) : (
-                      <Play className="w-3.5 h-3.5" />
+                      <Play className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                     )}
                   </button>
 
                   {/* 删除 */}
                   <button
                     onClick={() => handleDeleteKey(k.id)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-red-400
+                    className="p-2 sm:p-1.5 rounded-lg text-muted-foreground hover:text-red-400
                                hover:bg-red-500/10 transition-colors"
                     title="删除"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                   </button>
                 </div>
+              </div>
+
+              {/* 第二行：API Key + 同步时间（手机端） */}
+              <div className="flex items-center gap-2 mt-2 sm:hidden text-[10px] text-muted-foreground">
+                <span className="font-mono truncate">{k.apiKey}</span>
+                <span className="text-gray-600">·</span>
+                <span className="shrink-0">
+                  {k.lastSyncAt ? fmtTime(k.lastSyncAt) : '未同步'}
+                </span>
               </div>
             </div>
           ))}

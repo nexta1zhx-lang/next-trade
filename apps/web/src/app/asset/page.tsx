@@ -426,17 +426,17 @@ export default function AssetPage() {
   if (!initDone) return null
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-6">
       {/* 头部 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <Wallet className="w-5 h-5 text-primary" />
-          <h1 className="text-lg font-bold">资产分析</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 mb-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Wallet className="w-5 h-5 text-primary shrink-0" />
+          <h1 className="text-base sm:text-lg font-bold">资产分析</h1>
         </div>
-        <div className="flex items-center gap-1 bg-[#18181b] border border-gray-800 rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-[#18181b] border border-gray-800 rounded-lg p-0.5 overflow-x-auto max-w-full">
           <button
             onClick={() => setPrivacyMode(!privacyMode)}
-            className={`px-2 py-1 rounded-md transition-colors ${privacyMode ? 'bg-amber-500/15 text-amber-400' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`px-2 py-1.5 rounded-md transition-colors shrink-0 ${privacyMode ? 'bg-amber-500/15 text-amber-400' : 'text-gray-500 hover:text-gray-300'}`}
             title={privacyMode ? '显示金额' : '隐藏金额'}
           >
             {privacyMode ? (
@@ -449,7 +449,7 @@ export default function AssetPage() {
             <button
               key={code}
               onClick={() => setCurrency(code)}
-              className={`px-2 py-1 text-xs rounded-md transition-colors ${currency === code ? 'bg-primary/15 text-primary font-medium' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`px-2 py-1.5 text-xs rounded-md transition-colors shrink-0 ${currency === code ? 'bg-primary/15 text-primary font-medium' : 'text-gray-500 hover:text-gray-300'}`}
             >
               {code}
             </button>
@@ -459,7 +459,7 @@ export default function AssetPage() {
               setLoading(true)
               fetchAll()
             }}
-            className="px-2 py-1 text-xs rounded-md text-gray-400 hover:text-gray-200 transition-colors border-l border-gray-800 ml-1 pl-2"
+            className="px-2 py-1.5 text-xs rounded-md text-gray-400 hover:text-gray-200 transition-colors border-l border-gray-800 ml-1 pl-2 shrink-0"
           >
             刷新
           </button>
@@ -486,14 +486,14 @@ export default function AssetPage() {
       {!loading && loggedIn && (
         <>
           {keyIds.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex gap-2 mb-4 overflow-x-auto -mx-2 px-2 scrollbar-none pb-1">
               {keyIds.map(kid => {
                 const label = currentAssets?.[kid]?.label ?? `Key #${kid}`
                 return (
                   <button
                     key={kid}
                     onClick={() => setSelectedKeyId(kid)}
-                    className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${selectedKeyId === kid ? 'bg-primary/15 text-primary font-medium border border-primary/30' : 'bg-[#18181b] border border-gray-800 text-gray-400 hover:text-gray-200'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0 whitespace-nowrap ${selectedKeyId === kid ? 'bg-primary/15 text-primary font-medium border border-primary/30' : 'bg-[#18181b] border border-gray-800 text-gray-400 hover:text-gray-200'}`}
                   >
                     {label}
                   </button>
@@ -515,7 +515,7 @@ export default function AssetPage() {
           {currentKeyAsset && currentKeyAsset.snapshotAt !== null && (
             <>
               {/* ═══ 第一行：总资产(含振幅+较昨日) + 五大分资产 ═══ */}
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
                 <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
                   <p className="text-[10px] text-muted-foreground mb-0.5">
                     总资产 ({currency})
@@ -670,8 +670,8 @@ export default function AssetPage() {
               </div>
 
               {/* ═══ 第三行：走势图 + 饼图 ═══ */}
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-                <div className="lg:col-span-3 bg-[#18181b] rounded-xl border border-gray-800 p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
+                <div className="lg:col-span-3 bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <h2 className="text-sm font-medium">
@@ -688,7 +688,7 @@ export default function AssetPage() {
                         ROI
                       </button>
                     </div>
-                    <div className="flex items-center gap-1 bg-[#18181b] border border-gray-800 rounded-lg p-0.5">
+                    <div className="flex items-center gap-1 bg-[#18181b] border border-gray-800 rounded-lg p-0.5 overflow-x-auto">
                       {(Object.keys(RANGE_LABELS) as TimeRange[]).map(r => (
                         <button
                           key={r}
@@ -696,7 +696,7 @@ export default function AssetPage() {
                             setTimeRange(r)
                             setCustomRange(null)
                           }}
-                          className={`px-2 py-1 text-xs rounded-md transition-colors ${timeRange === r && !customRange ? 'bg-primary/15 text-primary font-medium' : 'text-gray-500 hover:text-gray-300'}`}
+                          className={`px-2 py-1 text-xs rounded-md transition-colors shrink-0 ${timeRange === r && !customRange ? 'bg-primary/15 text-primary font-medium' : 'text-gray-500 hover:text-gray-300'}`}
                         >
                           {RANGE_LABELS[r]}
                         </button>
@@ -748,7 +748,7 @@ export default function AssetPage() {
                     </div>
                   </div>
                   {chartData.length > 1 ? (
-                    <div className="h-[320px]">
+                    <div className="h-[220px] sm:h-[280px] lg:h-[320px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart
                           data={chartData}
@@ -913,7 +913,7 @@ export default function AssetPage() {
                 <div className="bg-[#18181b] rounded-xl border border-gray-800 p-4">
                   <h2 className="text-sm font-medium mb-3">资产占比</h2>
                   {pieData.length > 0 ? (
-                    <div className="h-[320px]">
+                    <div className="h-[200px] sm:h-[280px] lg:h-[320px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
