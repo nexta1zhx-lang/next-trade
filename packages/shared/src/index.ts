@@ -421,3 +421,89 @@ export interface PositionSummary {
   avgHoldingSeconds: number
   avgRoiPct: number
 }
+
+// ─── 发布订阅 ───
+
+/** 持仓公开粒度 */
+export type PositionGranularity = 'basic' | 'full'
+
+/** 发布设置 */
+export interface PublishSettings {
+  isPublic: boolean
+  showPositions: boolean
+  positionGranularity: PositionGranularity
+  showCapital: boolean
+  showOrders: boolean
+  updatedAt: string
+}
+
+/** 更新发布设置载荷 */
+export interface PublishSettingsUpdate {
+  isPublic?: boolean
+  showPositions?: boolean
+  positionGranularity?: PositionGranularity
+  showCapital?: boolean
+  showOrders?: boolean
+}
+
+/** 公开成交记录条目 */
+export interface PublicTrade {
+  tradeId: string
+  symbol: string
+  side: string
+  price: number
+  amount: number
+  realizedPnl: number
+  executedAt: string
+}
+
+/** 公开用户信息（搜索结果） */
+export interface PublicUser {
+  id: number
+  username: string
+  isFollowing: boolean
+  settings: PublishSettings
+  /** 当前公开持仓数量 */
+  openPositionCount?: number
+  /** 累计盈亏（basic 粒度不暴露具体金额） */
+  totalPnl?: number
+}
+
+/** 用户的公开仓位（精简版） */
+export interface PublicPosition {
+  symbol: string
+  positionSide: PositionSide
+  entryPrice: number
+  markPrice: number
+  unrealizedPnl: number
+  roiPct: number
+  leverage: number
+  marginType: string
+}
+
+/** 用户的公开资金概况 */
+export interface PublicCapital {
+  totalNetVal: number
+  dayPnl: number
+  dayPnlPct: number
+  snapshotAt: string | null
+}
+
+/** 用户公开数据聚合 */
+export interface PublicUserData {
+  user: Pick<PublicUser, 'id' | 'username'>
+  positions?: PublicPosition[]
+  capital?: PublicCapital
+  trades?: PublicTrade[]
+  updatedAt: string
+}
+
+/** 关注列表条目 */
+export interface FollowItem {
+  id: number
+  followingId: number
+  username: string
+  settings: PublishSettings
+  openPositionCount: number
+  createdAt: string
+}

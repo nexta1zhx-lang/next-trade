@@ -232,5 +232,43 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({keyId})
     })
+  },
+
+  // ─── 发布订阅 ───
+  getPublishSettings() {
+    return fetchApi<any>('/v1/publish/settings')
+  },
+  updatePublishSettings(data: Record<string, any>) {
+    return fetchApi<any>('/v1/publish/settings', {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    })
+  },
+  searchPublicUsers(params: {q?: string; page?: number; pageSize?: number}) {
+    const qs = new URLSearchParams()
+    if (params.q) qs.set('q', params.q)
+    if (params.page) qs.set('page', String(params.page))
+    if (params.pageSize) qs.set('pageSize', String(params.pageSize))
+    return fetchApi<any>(`/v1/publish/users?${qs}`)
+  },
+  getMyFollowing() {
+    return fetchApi<any>('/v1/publish/following')
+  },
+  followUser(userId: number) {
+    return fetchApi<any>('/v1/publish/follow', {
+      method: 'POST',
+      body: JSON.stringify({userId})
+    })
+  },
+  unfollowUser(userId: number) {
+    return fetchApi<any>(`/v1/publish/follow/${userId}`, {
+      method: 'DELETE'
+    })
+  },
+  getPublicUserData(userId: number) {
+    return fetchApi<any>(`/v1/publish/user/${userId}`)
+  },
+  getPublishStats() {
+    return fetchApi<any>('/v1/publish/stats')
   }
 }

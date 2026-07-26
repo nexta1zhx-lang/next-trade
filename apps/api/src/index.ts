@@ -15,6 +15,7 @@ import {v1TradesRouter} from './routes/v1/trades.js'
 import {v1PositionsRouter} from './routes/v1/positions.js'
 import {userConfigRouter} from './routes/user-config.js'
 import {favoritesRouter} from './routes/favorites.js'
+import {publishRouter} from './routes/publish.js'
 import {assetRouter} from './routes/asset.js'
 import {assetQueue} from './services/assetQueue.js'
 import {authMiddleware} from './middleware/auth.js'
@@ -79,6 +80,11 @@ app.route('/api/user/config', userConfigRouter)
 
 // ─── 自选币种路由（需登录） ───
 app.route('/api/favorites', favoritesRouter)
+
+// ─── 发布订阅路由（需登录） ───
+app.use('/api/v1/publish', authMiddleware)
+app.use('/api/v1/publish/*', authMiddleware)
+app.route('/api/v1/publish', publishRouter)
 
 // ─── 资产快照路由（需登录） ───
 app.use('/api/asset/*', authMiddleware)

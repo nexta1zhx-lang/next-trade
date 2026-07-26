@@ -17,7 +17,14 @@ import {
   Pause,
   Calendar,
   Clock,
-  FlaskConical
+  FlaskConical,
+  Globe,
+  Users,
+  Eye,
+  EyeOff,
+  Unlock,
+  DollarSign,
+  Activity
 } from 'lucide-react'
 import * as Tabs from '@radix-ui/react-tabs'
 import {
@@ -898,6 +905,289 @@ function ApiKeyManager() {
 // ══════════════════════════════════════════
 // 主页面 - 合并设置
 // ══════════════════════════════════════════
+// 公开设置子组件
+// ══════════════════════════════════════════
+function PublishSettings() {
+  const [settings, setSettings] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchSettings = useCallback(async () => {
+    try {
+      const data = await api.getPublishSettings()
+      setSettings(data)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchSettings()
+  }, [fetchSettings])
+
+  const handleSave = async () => {
+    if (!settings) return
+    setSaving(true)
+    setError(null)
+    setSuccess(false)
+    try {
+      const updated = await api.updatePublishSettings({
+        isPublic: settings.isPublic,
+        showPositions: settings.showPositions,
+        positionGranularity: settings.positionGranularity,
+        showCapital: settings.showCapital,
+        showOrders: settings.showOrders
+      })
+      setSettings({...settings, ...updated})
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 2000)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
+        加载中...
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5 text-xs text-red-400">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* 统计卡片 */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+            <Users className="w-4 h-4" />
+            <span className="text-xs">粉丝</span>
+          </div>
+          <p className="text-xl font-bold">{settings?.followerCount ?? 0}</p>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center gap-2 text-muted-foreground mb-1">
+            <Users className="w-4 h-4" />
+            <span className="text-xs">关注</span>
+          </div>
+          <p className="text-xl font-bold">{settings?.followingCount ?? 0}</p>
+        </div>
+      </div>
+
+      {/* 是否公开 */}
+      <div className="bg-card border border-border rounded-xl p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Globe className="w-5 h-5 text-primary shrink-0" />
+            <div>
+              <label className="text-sm font-medium text-foreground">
+                公开我的数据
+              </label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                开启后其他用户可以搜索到你的用户名并关注你
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() =>
+              setSettings((prev: any) =>
+                prev ? {...prev, isPublic: !prev.isPublic} : null
+              )
+            }
+            className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${settings?.isPublic ? 'bg-primary' : 'bg-gray-600'}`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${settings?.isPublic ? 'translate-x-5' : ''}`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* 公开内容设置 - 仅在公开时显示 */}
+      {settings?.isPublic && (
+        <>
+          {/* 公开持仓 */}
+          <div className="bg-card border border-border rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Eye className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <label className="text-sm font-medium text-foreground">
+                    公开持仓
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    允许他人查看你的合约持仓数据
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() =>
+                  setSettings((prev: any) =>
+                    prev ? {...prev, showPositions: !prev.showPositions} : null
+                  )
+                }
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${settings?.showPositions ? 'bg-primary' : 'bg-gray-600'}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${settings?.showPositions ? 'translate-x-5' : ''}`}
+                />
+              </button>
+            </div>
+
+            {settings?.showPositions && (
+              <div>
+                <label className="text-xs text-muted-foreground block mb-3">
+                  持仓显示粒度
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() =>
+                      setSettings((prev: any) =>
+                        prev ? {...prev, positionGranularity: 'basic'} : null
+                      )
+                    }
+                    className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
+                      settings?.positionGranularity === 'basic'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-muted-foreground/30'
+                    }`}
+                  >
+                    <EyeOff className="w-4 h-4 shrink-0" />
+                    <div className="text-left">
+                      <div className="text-xs font-medium">精简</div>
+                      <div className="text-[10px] opacity-70">
+                        仅显示币种 + 方向 + ROI%
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() =>
+                      setSettings((prev: any) =>
+                        prev ? {...prev, positionGranularity: 'full'} : null
+                      )
+                    }
+                    className={`flex-1 flex items-center gap-2 px-4 py-3 rounded-xl border-2 transition-all ${
+                      settings?.positionGranularity === 'full'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground hover:border-muted-foreground/30'
+                    }`}
+                  >
+                    <Unlock className="w-4 h-4 shrink-0" />
+                    <div className="text-left">
+                      <div className="text-xs font-medium">完整</div>
+                      <div className="text-[10px] opacity-70">
+                        显示开仓价、数量、盈亏等详情
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 公开实盘资金 */}
+          <div className="bg-card border border-border rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <DollarSign className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <label className="text-sm font-medium text-foreground">
+                    公开实盘资金
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    允许他人查看你的总资产概况
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() =>
+                  setSettings((prev: any) =>
+                    prev ? {...prev, showCapital: !prev.showCapital} : null
+                  )
+                }
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${settings?.showCapital ? 'bg-primary' : 'bg-gray-600'}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${settings?.showCapital ? 'translate-x-5' : ''}`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* 公开订单历史 */}
+          <div className="bg-card border border-border rounded-xl p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Activity className="w-5 h-5 text-primary shrink-0" />
+                <div>
+                  <label className="text-sm font-medium text-foreground">
+                    公开订单历史
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    允许他人查看你的最近成交记录
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() =>
+                  setSettings((prev: any) =>
+                    prev ? {...prev, showOrders: !prev.showOrders} : null
+                  )
+                }
+                className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${settings?.showOrders ? 'bg-primary' : 'bg-gray-600'}`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${settings?.showOrders ? 'translate-x-5' : ''}`}
+                />
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 保存按钮 */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={saving || !settings}
+          className="flex items-center gap-1.5 px-4 py-2 text-xs bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
+        >
+          {saving ? (
+            <>
+              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              保存中
+            </>
+          ) : success ? (
+            <>
+              <Check className="w-3.5 h-3.5" />
+              已保存
+            </>
+          ) : (
+            <>
+              <Save className="w-3.5 h-3.5" />
+              保存
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════
 export default function SettingsPage() {
   return (
     <div className="max-w-3xl mx-auto px-2 sm:px-4 lg:px-6 py-3 sm:py-6">
@@ -920,6 +1210,12 @@ export default function SettingsPage() {
           >
             参数配置
           </Tabs.Trigger>
+          <Tabs.Trigger
+            value="publish"
+            className="px-4 py-2 text-sm data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary text-muted-foreground transition-colors"
+          >
+            公开设置
+          </Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="apikey">
@@ -928,6 +1224,10 @@ export default function SettingsPage() {
 
         <Tabs.Content value="config">
           <ParamConfig />
+        </Tabs.Content>
+
+        <Tabs.Content value="publish">
+          <PublishSettings />
         </Tabs.Content>
       </Tabs.Root>
     </div>

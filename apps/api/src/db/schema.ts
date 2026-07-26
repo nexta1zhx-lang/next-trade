@@ -670,3 +670,52 @@ export const positions = pgTable(
     keySymbolIdx: index('idx_pos_key_symbol').on(table.apiKeyId, table.symbol)
   })
 )
+
+// ═══════════════════════════════════════════
+// 发布设置表（每个用户一条）
+// ═══════════════════════════════════════════
+export const publishSettings = pgTable('publish_settings', {
+  userId: integer('user_id')
+    .references(() => users.id)
+    .primaryKey(),
+  /** 是否公开 */
+  isPublic: boolean('is_public').default(false).notNull(),
+  /** 公开持仓 */
+  showPositions: boolean('show_positions').default(true).notNull(),
+  /** 持仓粗细度: basic | full */
+  positionGranularity: varchar('position_granularity', {length: 10})
+    .default('basic')
+    .notNull(),
+  /** 公开实盘资金 */
+  showCapital: boolean('show_capital').default(false).notNull(),
+  /** 公开订单历史 */
+  showOrders: boolean('show_orders').default(false).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+})
+
+// ═══════════════════════════════════════════
+// 用户关注关系表
+// ═══════════════════════════════════════════
+export const userFollows = pgTable(
+  'user_follows',
+  {
+    id: serial('id').primaryKey(),
+    /** 关注者 */
+    followerId: integer('follower_id')
+      .references(() => users.id)
+      .notNull(),
+    /** 被关注者 */
+    followingId: integer('following_id')
+      .references(() => users.id)
+      .notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull()
+  },
+  table => ({
+    uniqueFollow: uniqueIndex('idx_uf_unique').on(
+      table.followerId,
+      table.followingId
+    ),
+    followerIdx: index('idx_uf_follower').on(table.followerId),
+    followingIdx: index('idx_uf_following').on(table.followingId)
+  })
+)
