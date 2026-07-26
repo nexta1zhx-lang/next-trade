@@ -309,9 +309,9 @@ export default function DailyAnalysisPage() {
       )}
 
       {data && (
-        <div className="flex flex-col md:flex-row gap-3 lg:gap-4 flex-1 overflow-hidden">
+        <div className="flex flex-col md:flex-row gap-3 lg:gap-4 flex-1 min-h-0 overflow-hidden">
           {/* 左栏 */}
-          <div className="w-full md:w-[220px] lg:w-[280px] shrink-0 flex flex-col max-h-[40vh] md:max-h-none">
+          <div className="w-full md:w-[220px] lg:w-[280px] flex flex-col flex-1 md:flex-none min-h-0">
             {/* 搜索框 */}
             <div className="bg-[#18181b] rounded-xl border border-gray-800 overflow-hidden flex flex-col flex-1">
               <div className="px-3 pt-2 pb-1.5 shrink-0">
@@ -840,7 +840,7 @@ export default function DailyAnalysisPage() {
 
           {/* 手机端：选中币种时全屏显示详情 */}
           {selectedItem && (
-            <div className="fixed inset-0 z-40 md:hidden bg-background">
+            <div className="fixed inset-0 z-40 md:hidden bg-background pb-14">
               <SymbolDetail
                 item={selectedItem}
                 selectedDate={date}
@@ -852,7 +852,7 @@ export default function DailyAnalysisPage() {
       )}
 
       {!data && !loading && !error && (
-        <div className="flex-1 flex items-center justify-center text-center text-gray-500">
+        <div className="flex-1 min-h-0 flex items-center justify-center text-center text-gray-500">
           <div>
             <Activity className="w-12 h-12 mx-auto mb-4 opacity-30" />
             <p className="text-lg mb-1">选择日期自动加载</p>

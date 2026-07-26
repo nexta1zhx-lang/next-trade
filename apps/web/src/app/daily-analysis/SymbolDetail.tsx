@@ -91,6 +91,9 @@ export default function SymbolDetail({
   const [customTag, setCustomTag] = useState('')
   const [saving, setSaving] = useState(false)
   const [expandedReviewId, setExpandedReviewId] = useState<number | null>(null)
+  const [journalTab, setJournalTab] = useState<'new' | 'history'>('new')
+  const journalRef = useRef<HTMLDivElement>(null)
+  const journalTouchStart = useRef<{x: number; y: number} | null>(null)
   const [ctxMenu, setCtxMenu] = useState<{
     x: number
     y: number
@@ -435,7 +438,7 @@ export default function SymbolDetail({
   }
 
   return (
-    <div className="rounded-xl bg-[#18181b] border border-gray-700/50 h-full flex flex-col overflow-hidden">
+    <div className="rounded-xl bg-[#18181b] border border-gray-700/50 h-full flex flex-col overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between p-3 md:p-4 pb-2 border-b border-gray-700/30 shrink-0 gap-2">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
@@ -660,8 +663,23 @@ export default function SymbolDetail({
         )}
       </div>
 
-      {/* 想法区 - 左右布局：新建想法 | 历史想法 */}
-      <div className="border-t border-gray-700/30 p-3 flex-1 min-h-0 flex flex-col relative">
+      {/* 想法区 - 手机 Tab 切换，桌面左右布局 */}
+      <div
+        className="border-t border-gray-700/30 p-3 flex-1 min-h-0 flex flex-col relative"
+        ref={journalRef}
+        onTouchStart={e => {
+          journalTouchStart.current = {x: e.touches[0].clientX, y: e.touches[0].clientY}
+        }}
+        onTouchEnd={e => {
+          if (!journalTouchStart.current) return
+          const dx = e.changedTouches[0].clientX - journalTouchStart.current.x
+          const dy = e.changedTouches[0].clientY - journalTouchStart.current.y
+          journalTouchStart.current = null
+          if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            setJournalTab(prev => (dx < 0 ? 'history' : 'new'))
+          }
+        }}
+      >
         {/* 未登录遮罩 */}
         {!getToken() && (
           <div className="absolute inset-0 z-20 bg-[#18181b]/80 backdrop-blur-[2px] flex flex-col items-center justify-center gap-3 rounded-b-xl">
@@ -675,12 +693,37 @@ export default function SymbolDetail({
             </a>
           </div>
         )}
-        <h4 className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1.5 shrink-0">
-          <FileText className="w-3.5 h-3.5" /> 想法 — {selectedDate}
-        </h4>
-        <div className="flex gap-3 flex-1 min-h-0">
+        <div className="flex items-center justify-between shrink-0">
+          <h4 className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5" /> 想法 — {selectedDate}
+          </h4>
+          {/* 手机端 Tab 切换按钮 */}
+          <div className="flex gap-1 md:hidden">
+            <button
+              onClick={() => setJournalTab('new')}
+              className={`px-2.5 py-1 text-[10px] rounded-md transition-colors ${
+                journalTab === 'new'
+                  ? 'bg-primary/15 text-primary font-medium'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              新增
+            </button>
+            <button
+              onClick={() => setJournalTab('history')}
+              className={`px-2.5 py-1 text-[10px] rounded-md transition-colors ${
+                journalTab === 'history'
+                  ? 'bg-primary/15 text-primary font-medium'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              历史
+            </button>
+          </div>
+        </div>
+        <div className="flex gap-3 flex-1 min-h-0 mt-2">
           {/* 左：新建想法 */}
-          <div className="w-1/2 flex flex-col gap-2 overflow-y-auto">
+          <div className={`md:w-1/2 flex flex-col gap-1.5 flex-1 min-h-0 ${journalTab === 'history' ? 'hidden md:flex' : 'w-full'}`}>
             <input
               value={reviewTitle}
               onChange={e => setReviewTitle(e.target.value)}
@@ -688,53 +731,23 @@ export default function SymbolDetail({
               className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200
                          placeholder:text-gray-600 focus:outline-none focus:border-blue-500 transition-colors shrink-0"
             />
-            <div className="flex gap-2 flex-1 min-h-0">
-              {/* 左：想法内容 */}
-              <div className="flex-1 flex flex-col gap-2">
+            {/* 文本框 + 保存按钮 + 标签（一列排列，避免被裁剪） */}
+            <div className="flex flex-col gap-1.5 flex-1 min-h-0">
+              <div className="flex gap-1.5 flex-1 min-h-0 overflow-hidden">
                 <textarea
                   value={reviewContent}
                   onChange={e => setReviewContent(e.target.value)}
                   placeholder="记录你的交易思路..."
-                  rows={3}
+                  rows={2}
                   className="flex-1 bg-[#0a0a0b] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200
-                             placeholder:text-gray-600 focus:outline-none focus:border-blue-500 transition-colors resize-none min-h-[60px]"
+                             placeholder:text-gray-600 focus:outline-none focus:border-blue-500 transition-colors resize-none min-h-[36px] overflow-y-auto"
                 />
-                <div className="flex items-start gap-2 shrink-0">
-                  <div className="flex flex-wrap gap-1 flex-1 min-w-0">
-                    {reviewTags.map(t => (
-                      <span
-                        key={t.tag}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
-                        style={{
-                          color: t.color,
-                          backgroundColor: t.color + '15'
-                        }}
-                      >
-                        {t.tag}
-                        <button
-                          onClick={() => removeTag(t.tag)}
-                          className="hover:opacity-70"
-                        >
-                          <X className="w-2.5 h-2.5" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleSaveReview}
-                    disabled={saving || !reviewContent.trim()}
-                    className="ml-auto px-3 py-1.5 bg-primary/20 text-primary rounded-lg text-xs hover:bg-primary/30 disabled:opacity-40 transition-colors flex items-center gap-1 shrink-0"
-                  >
-                    <Save className="w-3.5 h-3.5" /> {saving ? '...' : '保存'}
-                  </button>
-                </div>
-              </div>
-              {/* 右：标签选择器 */}
-              <div className="w-28 shrink-0 flex flex-col gap-1 max-h-full">
-                <span className="text-[10px] text-gray-500 font-medium shrink-0">
-                  标签
-                </span>
-                <div className="flex flex-col gap-1 overflow-y-auto min-h-0">
+                {/* 标签选择器 */}
+                <div className="w-28 shrink-0 flex flex-col gap-1 min-h-0">
+                  <span className="text-[10px] text-gray-500 font-medium shrink-0">
+                    标签
+                  </span>
+                  <div className="flex flex-col gap-0.5 overflow-y-auto flex-1 min-h-0">
                   {reviewTags.map(t => (
                     <span
                       key={t.tag}
@@ -797,10 +810,35 @@ export default function SymbolDetail({
                 </div>
               </div>
             </div>
+            </div>
+            {/* 保存按钮 - 固定在底部 */}
+            <div className="flex items-center gap-2 shrink-0 pt-0.5">
+              <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                {reviewTags.map(t => (
+                  <span
+                    key={t.tag}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
+                    style={{color: t.color, backgroundColor: t.color + '15'}}
+                  >
+                    {t.tag}
+                    <button onClick={() => removeTag(t.tag)} className="hover:opacity-70">
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={handleSaveReview}
+                disabled={saving || !reviewContent.trim()}
+                className="ml-auto px-3 py-1.5 bg-primary/20 text-primary rounded-lg text-xs hover:bg-primary/30 disabled:opacity-40 transition-colors flex items-center gap-1 shrink-0"
+              >
+                <Save className="w-3.5 h-3.5" /> {saving ? '...' : '保存'}
+              </button>
+            </div>
           </div>
 
           {/* 右：历史想法 */}
-          <div className="w-1/2 border-l border-gray-700/30 pl-3 overflow-y-auto space-y-1">
+          <div className={`md:w-1/2 md:border-l md:border-gray-700/30 md:pl-3 overflow-y-auto space-y-1 ${journalTab === 'new' ? 'hidden md:block' : 'w-full'}`}>
             {reviews.length === 0 ? (
               <p className="text-xs text-gray-600 py-2">暂无想法记录</p>
             ) : (
