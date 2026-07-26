@@ -15,6 +15,7 @@ COPY packages/shared/tsconfig.json packages/shared/
 COPY apps/web/package.json apps/web/
 COPY apps/web/tsconfig.json apps/web/
 COPY apps/web/next.config.ts apps/web/
+COPY apps/web/postcss.config.mjs apps/web/
 
 # 安装依赖
 RUN pnpm install --frozen-lockfile
