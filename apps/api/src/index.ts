@@ -140,7 +140,7 @@ async function main() {
       })
 
       binanceWs.on('open', () => {
-        console.log(`[ws proxy] connected: ${binanceSymbol}@kline_1m`)
+        console.log(`[ws kline] connected: ${binanceSymbol}@kline_1m`)
       })
 
       binanceWs.on('message', (data: Buffer) => {

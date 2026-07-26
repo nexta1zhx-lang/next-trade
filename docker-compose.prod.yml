@@ -42,6 +42,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      # 显式禁用代理，避免服务器环境变量 HTTPS_PROXY 干扰
+      HTTPS_PROXY: ''
+      HTTP_PROXY: ''
     depends_on:
       postgres:
         condition: service_healthy
