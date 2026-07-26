@@ -6,6 +6,7 @@
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "clean": "pnpm -r run clean",
+    "kill": "lsof -ti:3000,3001 | xargs kill -9 2>/dev/null; echo 'ports 3000,3001 freed'",
     "db:push": "pnpm --filter @nexttrade/api run db:push",
     "docker-d": "docker compose up -d"
   },

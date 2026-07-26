@@ -199,5 +199,38 @@ export const api = {
     if (params.startDate) qs.set('startDate', params.startDate)
     if (params.endDate) qs.set('endDate', params.endDate)
     return fetchApi<any>(`/v1/trades/stats?${qs}`)
+  },
+
+  getOpenPositions(keyId?: number) {
+    return fetchApi<any>(`/v1/positions${keyId ? `?keyId=${keyId}` : ''}`)
+  },
+  getPositionHistory(params: Record<string, any>) {
+    const qs = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) {
+      if (v != null && v !== '') qs.set(k, String(v))
+    }
+    return fetchApi<any>(`/v1/positions/history?${qs}`)
+  },
+  getPositionSummary(params: Record<string, any> = {}) {
+    const qs = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) {
+      if (v != null && v !== '') qs.set(k, String(v))
+    }
+    return fetchApi<any>(`/v1/positions/summary?${qs}`)
+  },
+  getPositionDetail(id: number) {
+    return fetchApi<any>(`/v1/positions/${id}`)
+  },
+  syncTrades(keyId: number, startDate?: string, endDate?: string) {
+    return fetchApi<any>('/v1/trades/sync', {
+      method: 'POST',
+      body: JSON.stringify({keyId, startDate, endDate})
+    })
+  },
+  reconcileTrades(keyId?: number) {
+    return fetchApi<any>('/v1/trades/reconcile', {
+      method: 'POST',
+      body: JSON.stringify({keyId})
+    })
   }
 }

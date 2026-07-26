@@ -7,10 +7,8 @@ import {
   TrendingUp,
   Activity,
   Settings2,
-  Key,
   AreaChart,
-  Wallet,
-  ChevronRight
+  Wallet
 } from 'lucide-react'
 import type {ReactNode} from 'react'
 
@@ -22,11 +20,10 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   {label: '每日行情', href: '/daily-analysis', icon: BarChart3},
-  {label: '实盘分析', href: '/analysis', icon: AreaChart},
+  {label: '实盘订阅', href: '/analysis', icon: AreaChart},
   {label: '合约实盘', href: '/futures', icon: TrendingUp},
   {label: '资产概况', href: '/asset', icon: Wallet},
-  {label: 'API 密钥', href: '/orders', icon: Key},
-  {label: '参数配置', href: '/settings', icon: Settings2}
+  {label: '系统设置', href: '/settings', icon: Settings2}
 ]
 
 export function AppShell({children}: {children: ReactNode}) {

@@ -27,7 +27,7 @@ export default function GlobalToast() {
           id,
           message: '登录已过期，请重新登录',
           type: 'error',
-          action: {label: '去登录', href: '/orders'}
+          action: {label: '去登录', href: '/settings'}
         }
       ])
       setTimeout(() => {

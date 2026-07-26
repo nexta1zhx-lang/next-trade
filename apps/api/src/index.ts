@@ -12,6 +12,7 @@ import {authRouter} from './routes/auth.js'
 import {symbolsRouter} from './routes/symbols.js'
 import {v1KeysRouter} from './routes/v1/keys.js'
 import {v1TradesRouter} from './routes/v1/trades.js'
+import {v1PositionsRouter} from './routes/v1/positions.js'
 import {userConfigRouter} from './routes/user-config.js'
 import {favoritesRouter} from './routes/favorites.js'
 import {assetRouter} from './routes/asset.js'
@@ -24,6 +25,9 @@ import {db} from './db/index.js'
 import {apiKeys} from './db/schema.js'
 import {eq, and} from 'drizzle-orm'
 import {startBinanceTicker, subscribeTicker} from './services/wsTicker.js'
+import {subscribeClient, unsubscribeClient} from './services/wsUserData.js'
+import {incrementalSync} from './services/tradeSyncService.js'
+import {verifyToken} from './services/auth.js'
 const app = new Hono()
 
 // ─── 全局中间件 ───
@@ -61,6 +65,11 @@ app.use('/api/v1/trades', authMiddleware)
 app.use('/api/v1/trades/*', authMiddleware)
 app.route('/api/v1/trades', v1TradesRouter)
 
+// ─── V1 合约仓位路由 ───
+app.use('/api/v1/positions', authMiddleware)
+app.use('/api/v1/positions/*', authMiddleware)
+app.route('/api/v1/positions', v1PositionsRouter)
+
 // ─── V1 分析路由认证 ───
 app.use('/api/v1/analytics/*', authMiddleware)
 
@@ -73,7 +82,6 @@ app.route('/api/favorites', favoritesRouter)
 // ─── 资产快照路由（需登录） ───
 app.use('/api/asset/*', authMiddleware)
 app.route('/api/asset', assetRouter)
-
 
 // ─── 启动 ───
 async function main() {
@@ -107,6 +115,54 @@ async function main() {
           unsubscribe()
         })
         ws.on('error', () => unsubscribe())
+      })
+      return
+    }
+
+    // /ws/user — 用户数据流代理（按需连接）
+    if (url.pathname === '/ws/user') {
+      const token = url.searchParams.get('token')
+      if (!token) {
+        socket.destroy()
+        return
+      }
+      wss.handleUpgrade(req, socket, head, ws => {
+        if (!token) {
+          ws.close(4001, 'missing token')
+          return
+        }
+        verifyToken(token)
+          .then(async claims => {
+            if (!claims?.sub) {
+              ws.close(4001, 'invalid token')
+              return
+            }
+            const userId = parseInt(claims.sub)
+            const keys = await db
+              .select({id: apiKeys.id})
+              .from(apiKeys)
+              .where(
+                and(
+                  eq(apiKeys.userId, userId),
+                  eq(apiKeys.exchangeId, 'binance'),
+                  eq(apiKeys.status, 'ACTIVE')
+                )
+              )
+              .limit(1)
+            if (!keys.length) {
+              ws.close(4001, 'no active key')
+              return
+            }
+            const keyId = keys[0].id
+            const ok = await subscribeClient(keyId, ws)
+            if (!ok) {
+              ws.close(4001, 'subscribe failed')
+              return
+            }
+            ws.on('close', () => unsubscribeClient(keyId, ws))
+            ws.on('error', () => unsubscribeClient(keyId, ws))
+          })
+          .catch(() => ws.close(4001, 'auth failed'))
       })
       return
     }

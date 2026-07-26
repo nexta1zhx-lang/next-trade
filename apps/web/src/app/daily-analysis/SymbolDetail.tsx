@@ -667,7 +667,7 @@ export default function SymbolDetail({
             <FileText className="w-8 h-8 text-gray-600" />
             <p className="text-sm text-gray-500">登录后可记录想法</p>
             <a
-              href="/orders"
+              href="/settings"
               className="px-4 py-1.5 bg-primary/20 text-primary rounded-lg text-xs hover:bg-primary/30 transition-colors"
             >
               去登录

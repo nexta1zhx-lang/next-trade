@@ -99,11 +99,18 @@ router.post('/', zValidator('json', createSchema), async c => {
     createdAt: key.createdAt.toISOString()
   }
 
-  // 绑定 Binance Key 后自动投递首次资产采集（后台执行，不阻塞返回）
+  // 绑定 Binance Key 后自动触发后台任务（不阻塞返回）
   if (exchangeId === 'binance') {
     import('../../services/assetQueue.js').then(({enqueueAssetSnapshot}) => {
       enqueueAssetSnapshot(key.id).catch((err: Error) =>
         console.error(`[keys] 首次资产采集失败 key=${key.id}:`, err.message)
+      )
+    })
+    // 拉近 30 天历史成交（内部按 7 天窗口迭代）
+    import('../../services/tradeSyncService.js').then(({syncAllSymbols}) => {
+      syncAllSymbols(key.id, Date.now() - 30 * 24 * 60 * 60 * 1000, true).catch(
+        (err: Error) =>
+          console.error(`[keys] 历史成交同步失败 key=${key.id}:`, err.message)
       )
     })
   }

@@ -203,4 +203,57 @@ router.get('/stats', zValidator('query', statsSchema), async c => {
   })
 })
 
+// ─── POST /sync — 拉取历史成交 ───
+import {syncAllSymbols} from '../../services/tradeSyncService.js'
+const syncSchema = z.object({
+  keyId: z.coerce.number(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional()
+})
+router.post('/sync', zValidator('json', syncSchema), async c => {
+  const userId = (c as any).get('userId')
+  const {keyId, startDate, endDate} = c.req.valid('json')
+  const [key] = await db
+    .select({id: apiKeys.id})
+    .from(apiKeys)
+    .where(and(eq(apiKeys.id, keyId), eq(apiKeys.userId, userId)))
+    .limit(1)
+  if (!key) return c.json({success: false, error: 'API Key not found'}, 404)
+  const st = startDate
+    ? new Date(startDate + 'T00:00:00Z').getTime()
+    : undefined
+  const result = await syncAllSymbols(keyId, st)
+  return c.json({success: true, data: result})
+})
+
+// ─── POST /reconcile — 增量对账 ───
+import {incrementalSync} from '../../services/tradeSyncService.js'
+router.post(
+  '/reconcile',
+  zValidator('json', z.object({keyId: z.coerce.number().optional()})),
+  async c => {
+    const userId = (c as any).get('userId')
+    const {keyId} = c.req.valid('json')
+    const userKeys = await db
+      .select({id: apiKeys.id})
+      .from(apiKeys)
+      .where(
+        and(
+          eq(apiKeys.userId, userId),
+          keyId ? eq(apiKeys.id, keyId) : undefined
+        )
+      )
+    const results = []
+    for (const k of userKeys) {
+      try {
+        const r = await incrementalSync(k.id)
+        results.push({keyId: k.id, inserted: r.totalInserted})
+      } catch (e: any) {
+        results.push({keyId: k.id, inserted: 0, error: e.message})
+      }
+    }
+    return c.json({success: true, data: results})
+  }
+)
+
 export {router as v1TradesRouter}
