@@ -5,6 +5,7 @@
  * 计算层: XREADGROUP → 消费 → XACK
  */
 import Redis from 'ioredis'
+import {config} from '../config.js'
 import {
   STREAM_KEY,
   CONSUMER_GROUP,
@@ -19,9 +20,12 @@ let redis: Redis | null = null
 
 export function getRedis(): Redis {
   if (!redis) {
-    redis = new Redis({
-      host: process.env.REDIS_HOST ?? 'localhost',
-      port: parseInt(process.env.REDIS_PORT ?? '6379')
+    redis = new Redis(config.REDIS_URL, {
+      maxRetriesPerRequest: null,
+      lazyConnect: true
+    })
+    redis.on('error', err => {
+      console.warn('[eventStream redis] connection error:', err.message)
     })
   }
   return redis
