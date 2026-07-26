@@ -388,6 +388,18 @@ export interface PositionDetail extends PositionRecord {
     isLiquidation: boolean
     executedAt: string
   }>
+  /** 分组汇总：开仓合并、平仓合并 */
+  orderSummary: {
+    entryCount: number
+    entryAvgPrice: number
+    entryTotalAmount: number
+    entryTotalFee: number
+    exitCount: number
+    exitAvgPrice: number
+    exitTotalAmount: number
+    exitTotalFee: number
+    exitRealizedPnl: number
+  }
   analysis: {
     holdingTimeFormatted: string
     netPnl: number

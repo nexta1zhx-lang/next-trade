@@ -55,6 +55,55 @@ function calcMaxDrawdown(prices: number[]): number {
   return maxDd
 }
 
+/** 合并 1 秒内的同向订单（分批成交） */
+function mergeOrdersWithin1s(
+  orders: PositionDetail['orders']
+): PositionDetail['orders'] {
+  if (orders.length < 2) return orders
+
+  const result: PositionDetail['orders'] = []
+  let i = 0
+
+  while (i < orders.length) {
+    const batch = [orders[i]]
+    const t0 = new Date(orders[i].executedAt).getTime()
+
+    // 收集 1 秒内同向的后续订单
+    while (
+      i + 1 < orders.length &&
+      new Date(orders[i + 1].executedAt).getTime() - t0 <= 1000 &&
+      orders[i + 1].side === orders[i].side
+    ) {
+      batch.push(orders[i + 1])
+      i++
+    }
+
+    if (batch.length === 1) {
+      result.push(batch[0])
+    } else {
+      // 合并：加权均价、汇总数量和费用
+      const totalAmt = batch.reduce((s, o) => s + o.amount, 0)
+      const merged: PositionDetail['orders'][0] = {
+        tradeId: batch.map(o => o.tradeId).join(','),
+        price:
+          totalAmt > 0
+            ? batch.reduce((s, o) => s + o.price * o.amount, 0) / totalAmt
+            : batch[0].price,
+        amount: totalAmt,
+        side: batch[0].side,
+        realizedPnl: batch.reduce((s, o) => s + o.realizedPnl, 0),
+        feeUsdt: batch.reduce((s, o) => s + o.feeUsdt, 0),
+        isLiquidation: batch.some(o => o.isLiquidation),
+        executedAt: batch[0].executedAt
+      }
+      result.push(merged)
+    }
+    i++
+  }
+
+  return result
+}
+
 // ─── 原生 HTAMC 签名 GET ───
 
 function sign(secret: string, qs: string): string {
@@ -201,6 +250,9 @@ export async function syncPositionsFromTrades(apiKeyId: number): Promise<void> {
     .orderBy(asc(trades.executedAt))
 
   if (tradeRows.length === 0) return
+
+  // 全量重算：先删该 Key 的旧仓位记录
+  await db.delete(positions).where(eq(positions.apiKeyId, apiKeyId))
 
   // 按 (symbol, direction) 分组
   const groups = new Map<string, TradeRow[]>()
@@ -450,6 +502,9 @@ export async function getPositionDetail(
       isLiquidation: t.isLiquidation ?? false,
       executedAt: t.executedAt.toISOString()
     }))
+
+    // 合并 1 秒内的同向订单（分批成交）
+    orders = mergeOrdersWithin1s(orders)
   }
 
   const record = mapPositionRow(pos)
@@ -458,9 +513,39 @@ export async function getPositionDetail(
   const ddPct = record.maxDrawdownPct ?? 0
   const holdingSecs = record.holdingSeconds ?? 0
 
+  // 分组汇总
+  const entryOrders = orders.filter(
+    o => o.side === 'OPEN_LONG' || o.side === 'OPEN_SHORT'
+  )
+  const exitOrders = orders.filter(
+    o => o.side === 'CLOSE_LONG' || o.side === 'CLOSE_SHORT'
+  )
+  const entryTotalAmt = entryOrders.reduce((s, o) => s + o.amount, 0)
+  const exitTotalAmt = exitOrders.reduce((s, o) => s + o.amount, 0)
+
+  const orderSummary = {
+    entryCount: entryOrders.length,
+    entryAvgPrice:
+      entryTotalAmt > 0
+        ? entryOrders.reduce((s, o) => s + o.price * o.amount, 0) /
+          entryTotalAmt
+        : 0,
+    entryTotalAmount: entryTotalAmt,
+    entryTotalFee: entryOrders.reduce((s, o) => s + o.feeUsdt, 0),
+    exitCount: exitOrders.length,
+    exitAvgPrice:
+      exitTotalAmt > 0
+        ? exitOrders.reduce((s, o) => s + o.price * o.amount, 0) / exitTotalAmt
+        : 0,
+    exitTotalAmount: exitTotalAmt,
+    exitTotalFee: exitOrders.reduce((s, o) => s + o.feeUsdt, 0),
+    exitRealizedPnl: exitOrders.reduce((s, o) => s + o.realizedPnl, 0)
+  }
+
   return {
     ...record,
     orders,
+    orderSummary,
     analysis: {
       holdingTimeFormatted: formatHoldingTime(holdingSecs),
       netPnl,

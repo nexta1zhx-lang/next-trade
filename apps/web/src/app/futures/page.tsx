@@ -539,12 +539,24 @@ export default function FuturesPage() {
               <div>
                 <span className="text-muted-foreground">开仓均价</span>
                 <p className="font-medium">{fmt(detail.entryPrice)}</p>
+                {detail.orderSummary?.entryCount > 1 && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {detail.orderSummary.entryCount} 笔合并 · 均价{' '}
+                    {fmt(detail.orderSummary.entryAvgPrice)}
+                  </p>
+                )}
               </div>
               <div>
                 <span className="text-muted-foreground">平仓均价</span>
                 <p className="font-medium">
                   {detail.exitPrice ? fmt(detail.exitPrice) : '—'}
                 </p>
+                {detail.orderSummary?.exitCount > 1 && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {detail.orderSummary.exitCount} 笔合并 · 均价{' '}
+                    {fmt(detail.orderSummary.exitAvgPrice)}
+                  </p>
+                )}
               </div>
               <div>
                 <span className="text-muted-foreground">数量</span>
@@ -560,6 +572,12 @@ export default function FuturesPage() {
             <div className="px-4 pb-4">
               <h3 className="text-sm font-medium mb-2 text-muted-foreground">
                 成交明细
+                {detail.orderSummary && (
+                  <span className="text-[11px] ml-2">
+                    ({detail.orderSummary.entryCount} 笔开仓 ·{' '}
+                    {detail.orderSummary.exitCount} 笔平仓)
+                  </span>
+                )}
               </h3>
               <div className="overflow-x-auto rounded-lg border border-border">
                 <table className="w-full text-xs">
@@ -589,7 +607,7 @@ export default function FuturesPage() {
                       return (
                         <tr key={i} className="border-t border-border">
                           <td className="px-2.5 py-2 text-muted-foreground">
-                            {dateISO(o.executedAt)}
+                            {timeISO(o.executedAt)}
                           </td>
                           <td
                             className={`px-2.5 py-2 ${o.side?.includes('LONG') ? (isOpen ? 'text-emerald-500' : 'text-red-500') : isOpen ? 'text-red-500' : 'text-emerald-500'}`}
