@@ -47,8 +47,8 @@ COPY apps/api/package.json apps/api/
 # 安装生产依赖
 RUN pnpm install --frozen-lockfile --prod
 
-# 安装 drizzle-kit（用于数据库迁移 db:push）
-RUN pnpm add -D drizzle-kit
+# 安装 drizzle-kit 到 api 包（用于数据库迁移 db:push）
+RUN pnpm --filter @nexttrade/api add -D drizzle-kit
 
 # 复制构建产物
 COPY --from=builder /app/packages/shared/dist packages/shared/dist
