@@ -26,6 +26,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # 复制源码
 COPY packages/shared/src packages/shared/src
 COPY apps/web/src apps/web/src
+# 确保 public 目录存在（git 不追踪空目录，但 Docker COPY 需要源路径存在）
+RUN mkdir -p apps/web/public
 COPY apps/web/public apps/web/public
 
 # 构建 shared 包
