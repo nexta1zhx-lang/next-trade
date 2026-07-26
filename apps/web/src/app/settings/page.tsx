@@ -604,7 +604,7 @@ function ApiKeyManager() {
     setKeyLoading(true)
     setKeyError(null)
     try {
-      await api.storeApiKey(newKeyEx, newKey, newSecret, false, newKeyLabel)
+      await api.storeApiKey(newKeyEx, newKey, newSecret)
       setShowAddKey(false)
       setNewKeyLabel('')
       setNewKey('')

@@ -28,6 +28,7 @@ import {startBinanceTicker, subscribeTicker} from './services/wsTicker.js'
 import {subscribeClient, unsubscribeClient} from './services/wsUserData.js'
 import {incrementalSync} from './services/tradeSyncService.js'
 import {verifyToken} from './services/auth.js'
+import {startProcessors} from './processor/index.js'
 const app = new Hono()
 
 // ─── 全局中间件 ───
@@ -218,6 +219,11 @@ async function main() {
   server.on('request', getRequestListener(app.fetch))
   server.listen(config.PORT, '0.0.0.0', () => {
     console.log(`✓ API running on http://0.0.0.0:${config.PORT}`)
+  })
+
+  // 启动事件处理器（消费 Redis Streams）
+  startProcessors().then(() => {
+    console.log('✓ Event processors started')
   })
 
   // 注册每日行情采集定时任务 (UTC 00:05)

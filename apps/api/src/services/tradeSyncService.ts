@@ -349,7 +349,11 @@ async function getKey(
   apiKeyId: number
 ): Promise<{apiKey: string; secret: string}> {
   const [key] = await db
-    .select({apiKey: apiKeys.apiKey, secretEnc: apiKeys.secretEnc})
+    .select({
+      apiKey: apiKeys.apiKey,
+      secretEnc: apiKeys.secretEnc,
+      isTestnet: apiKeys.isTestnet
+    })
     .from(apiKeys)
     .where(eq(apiKeys.id, apiKeyId))
     .limit(1)

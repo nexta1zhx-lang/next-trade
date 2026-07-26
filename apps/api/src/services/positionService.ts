@@ -153,7 +153,7 @@ export async function getOpenPositionsFromExchange(
   apiKeyId: number
 ): Promise<OpenPosition[]> {
   const {apiKey, secret} = await getKey(apiKeyId)
-  const raw = await signedGet(apiKey, secret, '/fapi/v2/account')
+  const raw = await signedGet(apiKey, secret, '/fapi/v2/account', {})
   const data: any[] = Array.isArray(raw)
     ? raw
     : Array.isArray(raw?.positions)
@@ -317,7 +317,7 @@ export async function syncPositionsFromTrades(apiKeyId: number): Promise<void> {
         if (current) current.totalFee += fee
       } else {
         // ── 平仓 ──
-        if (!current || current.quantity <= 0) {
+        if (!current || current.quantity < 1e-8) {
           // 没有持仓却有平仓 → 跳过（已平完的残余成交）
           continue
         }
@@ -331,8 +331,8 @@ export async function syncPositionsFromTrades(apiKeyId: number): Promise<void> {
 
         if (t.isLiquidation) current.isLiquidation = true
 
-        // 仓位完全平掉 → 归档
-        if (current.quantity <= 0) {
+        // 仓位完全平掉 → 归档（用容差避免浮点精度问题）
+        if (current.quantity < 1e-8) {
           current.closedAt = t.executedAt
           builtPositions.push(current)
           current = null

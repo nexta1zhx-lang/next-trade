@@ -48,11 +48,15 @@ router.post('/', zValidator('json', createSchema), async c => {
   const {exchangeId, apiKey, apiSecret, passphrase, label, isTestnet} =
     c.req.valid('json')
 
-  const validation = await validateExchangeKey(exchangeId, {
-    apiKey,
-    apiSecret,
-    passphrase
-  })
+  const validation = await validateExchangeKey(
+    exchangeId,
+    {
+      apiKey,
+      apiSecret,
+      passphrase
+    },
+    isTestnet
+  )
   if (!validation.valid) {
     return c.json(
       {success: false, error: validation.error || 'API Key 校验失败'},
@@ -213,11 +217,15 @@ router.put('/:id', zValidator('json', updateSchema), async c => {
   if (body.label !== undefined) updateData.accountLabel = body.label
 
   if (body.apiKey && body.apiSecret) {
-    const validation = await validateExchangeKey('binance', {
-      apiKey: body.apiKey,
-      apiSecret: body.apiSecret,
-      passphrase: body.passphrase
-    })
+    const validation = await validateExchangeKey(
+      'binance',
+      {
+        apiKey: body.apiKey,
+        apiSecret: body.apiSecret,
+        passphrase: body.passphrase
+      },
+      false
+    )
     if (!validation.valid) {
       return c.json(
         {success: false, error: validation.error || '新 API Key 校验失败'},

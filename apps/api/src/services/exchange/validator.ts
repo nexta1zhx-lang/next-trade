@@ -13,7 +13,8 @@ import ccxt, {type Exchange} from 'ccxt'
 
 function createExchange(
   exchangeId: string,
-  credentials: {apiKey: string; apiSecret: string; passphrase?: string}
+  credentials: {apiKey: string; apiSecret: string; passphrase?: string},
+  isTestnet = false
 ): Exchange {
   const opts: Record<string, any> = {
     apiKey: credentials.apiKey,
@@ -21,9 +22,24 @@ function createExchange(
   }
   if (credentials.passphrase) opts.password = credentials.passphrase
 
+  // 测试网模式
+  if (isTestnet && exchangeId === 'binance') {
+    opts.options = {defaultType: 'swap', sandbox: true}
+    // CCXT Binance testnet URLs
+    opts.urls = {
+      api: {
+        fapiPublic: 'https://testnet.binancefuture.com/fapi/v1',
+        fapiPrivate: 'https://testnet.binancefuture.com/fapi/v1'
+      }
+    }
+  }
+
   switch (exchangeId) {
     case 'binance':
-      return new ccxt.binance({...opts, options: {defaultType: 'swap'}})
+      return new ccxt.binance({
+        ...opts,
+        options: {...opts.options, defaultType: 'swap'}
+      })
     case 'okx':
       return new ccxt.okx(opts)
     case 'bybit':
@@ -80,10 +96,11 @@ export interface ValidationResult {
  */
 export async function validateExchangeKey(
   exchangeId: string,
-  credentials: {apiKey: string; apiSecret: string; passphrase?: string}
+  credentials: {apiKey: string; apiSecret: string; passphrase?: string},
+  isTestnet = false
 ): Promise<ValidationResult> {
   try {
-    const ex = createExchange(exchangeId, credentials)
+    const ex = createExchange(exchangeId, credentials, isTestnet)
 
     // 1. 连接测试: 获取余额
     // 注意: Binance swap 模式下 fetchBalance 会调用 sapi/v1/capital/config/getall
