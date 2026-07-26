@@ -23,7 +23,6 @@ import {aggregateDailySummary} from './services/assetService.js'
 import {db} from './db/index.js'
 import {apiKeys} from './db/schema.js'
 import {eq, and} from 'drizzle-orm'
-import {stream} from 'hono/streaming'
 import {startBinanceTicker, subscribeTicker} from './services/wsTicker.js'
 const app = new Hono()
 
@@ -75,24 +74,6 @@ app.route('/api/favorites', favoritesRouter)
 app.use('/api/asset/*', authMiddleware)
 app.route('/api/asset', assetRouter)
 
-// ─── SSE 行情推送（用于实时盯盘） ───
-app.get('/api/ticker/stream', async c => {
-  c.header('Content-Type', 'text/event-stream')
-  c.header('Cache-Control', 'no-cache')
-  c.header('Connection', 'keep-alive')
-  c.header('X-Accel-Buffering', 'no')
-
-  startBinanceTicker()
-
-  return stream(c, async s => {
-    const unsubscribe = subscribeTicker(tickers => {
-      s.write(`data: ${JSON.stringify(tickers)}\n\n`)
-    })
-    c.req.raw.signal?.addEventListener('abort', () => unsubscribe())
-    // 保持连接直到客户端断开
-    await new Promise(() => {})
-  })
-})
 
 // ─── 启动 ───
 async function main() {
@@ -107,9 +88,30 @@ async function main() {
   const server = createServer()
   const wss = new WebSocketServer({noServer: true})
 
-  // WebSocket 代理：前端连接 /ws → 后端连接 Binance 期货
+  // WebSocket：前端连接 /ws（K线）或 /ws/ticker（全量行情推送）
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '', `http://${req.headers.host}`)
+
+    // /ws/ticker — 推送全量 ticker 数据（所有币种实时行情）
+    if (url.pathname === '/ws/ticker') {
+      startBinanceTicker()
+      wss.handleUpgrade(req, socket, head, ws => {
+        console.log('[ws ticker] client connected')
+        const unsubscribe = subscribeTicker(tickers => {
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify(tickers))
+          }
+        })
+        ws.on('close', () => {
+          console.log('[ws ticker] client disconnected')
+          unsubscribe()
+        })
+        ws.on('error', () => unsubscribe())
+      })
+      return
+    }
+
+    // /ws — K 线代理（单币种）
     if (url.pathname !== '/ws') {
       socket.destroy()
       return

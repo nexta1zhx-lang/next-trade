@@ -15,6 +15,7 @@ import type {FavoriteSymbol} from '@nexttrade/shared'
 import dynamic from 'next/dynamic'
 import {authHeaders, getToken, API_ORIGIN} from '@/lib/api'
 import {useUserConfig} from '@/hooks/useUserConfig'
+import {useTickerWs, type TickerData} from '@/hooks/useTickerWs'
 
 const SymbolDetail = dynamic(() => import('./SymbolDetail'), {ssr: false})
 
@@ -61,18 +62,6 @@ const STABLECOINS = new Set([
   'USTC',
   'USDN'
 ])
-
-/** SSE ticker 数据类型 */
-interface TickerData {
-  symbol: string
-  price: string
-  open: string
-  change: string
-  volume: string
-  quoteVol: string
-  high: string
-  low: string
-}
 
 type AllSortKey = 'price' | 'change' | 'quoteVol' | 'base'
 
@@ -135,32 +124,20 @@ export default function DailyAnalysisPage() {
   const [favLoading, setFavLoading] = useState(false)
   const loggedIn = typeof window !== 'undefined' && !!getToken()
 
-  // ─── 实时 Ticker 数据（来自 SSE） ───
+  // ─── 实时 Ticker 数据（WebSocket） ───
   const [tickerMap, setTickerMap] = useState<Record<string, TickerData>>({})
   const tickerMapRef = useRef(tickerMap)
   tickerMapRef.current = tickerMap
 
-  // ─── SSE 连接 ───
-  useEffect(() => {
-    const es = new EventSource(`${API_ORIGIN}/api/ticker/stream`)
-
-    es.onmessage = (event: MessageEvent) => {
-      try {
-        const tickers: TickerData[] = JSON.parse(event.data)
-        const map: Record<string, TickerData> = {}
-        for (const t of tickers) {
-          map[t.symbol] = t
-        }
-        setTickerMap(prev => ({...prev, ...map}))
-      } catch {}
+  const handleTickers = useCallback((tickers: TickerData[]) => {
+    const map: Record<string, TickerData> = {}
+    for (const t of tickers) {
+      map[t.symbol] = t
     }
-
-    es.onerror = () => {
-      // 自动重连
-    }
-
-    return () => es.close()
+    setTickerMap(prev => ({...prev, ...map}))
   }, [])
+
+  useTickerWs(handleTickers)
 
   // ─── 获取收藏列表 ───
   const fetchFavorites = useCallback(async () => {

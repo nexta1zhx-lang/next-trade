@@ -17,8 +17,8 @@ const nextConfig: NextConfig = {
       },
       // WebSocket 代理
       {
-        source: '/ws',
-        destination: `${API_URL}/ws`
+        source: '/ws/:path*',
+        destination: `${API_URL}/ws/:path*`
       }
     ]
   }
