@@ -44,15 +44,16 @@ COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
 
-# 安装生产依赖
+# 仅安装生产依赖（保持镜像小巧）
 RUN pnpm install --frozen-lockfile --prod
-
-# 安装 drizzle-kit 到 api 包（用于数据库迁移 db:push）
-RUN pnpm --filter @nexttrade/api add -D drizzle-kit
 
 # 复制构建产物
 COPY --from=builder /app/packages/shared/dist packages/shared/dist
 COPY --from=builder /app/apps/api/dist apps/api/dist
+
+# 复制 drizzle 配置和 schema（用于 db:push）
+COPY apps/api/drizzle.config.ts apps/api/
+COPY apps/api/src/db/schema.ts apps/api/src/db/schema.ts
 
 EXPOSE 3001
 
