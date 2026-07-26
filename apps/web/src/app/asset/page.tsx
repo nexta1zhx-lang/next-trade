@@ -1,6 +1,6 @@
 'use client'
 
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   AreaChart,
   Area,
@@ -23,13 +23,17 @@ import {
   Gauge,
   AlertCircle,
   Percent,
-  History
+  History,
+  Eye,
+  EyeOff,
+  CalendarRange
 } from 'lucide-react'
 import {authHeaders, API_ORIGIN, getToken} from '@/lib/api'
 import type {
   AssetCurrent,
   AssetTodayExtremes,
-  AssetDailyOHLC
+  AssetDailyOHLC,
+  AssetPeriodAnalysis
 } from '@nexttrade/shared'
 
 // ─── 法币配置 ───
@@ -67,6 +71,17 @@ function fmtFull(n: number, currency = 'USD'): string {
       maximumFractionDigits: 2
     })
   )
+}
+
+// 隐私模式：金额打码
+function fmtMask(
+  n: number | null | undefined,
+  privacy: boolean,
+  currency = 'USD'
+): string {
+  if (privacy) return '****'
+  if (n === null || n === undefined) return '--'
+  return fmtFull(n, currency)
 }
 
 function fmtTime(isoStr: string | null | undefined): string {
@@ -147,6 +162,14 @@ export default function AssetPage() {
   const [currency, setCurrency] = useState('USD')
   const [timeRange, setTimeRange] = useState<TimeRange>('3m')
   const [chartMode, setChartMode] = useState<'value' | 'roi'>('value')
+  const [privacyMode, setPrivacyMode] = useState(false)
+  const [selectedModule, setSelectedModule] = useState<string | null>(null)
+  const [customRange, setCustomRange] = useState<{
+    start: string
+    end: string
+  } | null>(null)
+  const [periodAnalysis, setPeriodAnalysis] =
+    useState<AssetPeriodAnalysis | null>(null)
 
   useEffect(() => {
     setLoggedIn(!!getToken())
@@ -154,6 +177,23 @@ export default function AssetPage() {
   }, [])
 
   const days = RANGE_DAYS[timeRange]
+
+  // 计算当前选中的起止日期
+  const rangeDates = useMemo(() => {
+    if (customRange) return customRange
+    const end = new Date()
+    const start = new Date()
+    start.setUTCDate(start.getUTCDate() - days)
+    return {
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10)
+    }
+  }, [customRange, days])
+
+  // 用 ref 记住 keyIds，避免 setKeyIds 导致 useCallback 重建 → 无限请求
+  const keyIdsRef = useRef(keyIds)
+  keyIdsRef.current = keyIds
+
   const fetchAll = useCallback(async () => {
     if (!loggedIn) {
       setLoading(false)
@@ -161,53 +201,86 @@ export default function AssetPage() {
     }
     setError(null)
     try {
-      const [curRes, todayRes, histRes] = await Promise.all([
-        fetch(`${API_ORIGIN}/api/asset/current`, {headers: authHeaders()}),
-        fetch(`${API_ORIGIN}/api/asset/today`, {headers: authHeaders()}),
-        fetch(`${API_ORIGIN}/api/asset/history?days=${days}`, {
-          headers: authHeaders()
-        })
-      ])
+      // 1. current — 获取 Key 列表（始终请求）
+      const curRes = await fetch(`${API_ORIGIN}/api/asset/current`, {
+        headers: authHeaders()
+      })
       const curJson = await curRes.json()
-      const todayJson = await todayRes.json()
-      const histJson = await histRes.json()
 
+      let keys: number[] = []
       if (curJson.success) {
-        const keys = Object.keys(curJson.data).map(Number).sort()
+        keys = Object.keys(curJson.data).map(Number).sort()
         setCurrentAssets(curJson.data)
         setKeyIds(keys)
-        if (keys.length > 0 && !selectedKeyId) setSelectedKeyId(keys[0])
+        if (keys.length > 0 && selectedKeyId === null) setSelectedKeyId(keys[0])
       }
-      if (todayJson.success) setTodayData(todayJson.data)
-      if (histJson.success) {
-        const allData = Array.isArray(histJson.data)
-          ? histJson.data
-          : [histJson.data]
-        const merged = new Map<string, AssetDailyOHLC>()
-        for (const entry of allData) {
-          if (!entry.ohlc) continue
-          for (const o of entry.ohlc) {
-            const existing = merged.get(o.date)
-            if (existing) {
-              existing.openVal += o.openVal
-              existing.highVal += o.highVal
-              existing.lowVal += o.lowVal
-              existing.closeVal += o.closeVal
-            } else merged.set(o.date, {...o})
-          }
-        }
-        setOhlcData(
-          Array.from(merged.values()).sort((a, b) =>
-            a.date.localeCompare(b.date)
-          )
+
+      // 2. 确认当前选中的 Key
+      const activeKeyId = selectedKeyId ?? keys[0] ?? keyIdsRef.current[0]
+      if (!activeKeyId) {
+        setLoading(false)
+        return
+      }
+
+      // 3. 按时间范围按需请求
+      //    - "天"视图 → today（高频分时数据）
+      //    - 其他视图 → history（日 K 线）
+      //    - 始终 → period-analysis（分析区）
+      const is1d = timeRange === '1d' && !customRange
+      let dataRes: Response
+
+      if (is1d) {
+        dataRes = await fetch(
+          `${API_ORIGIN}/api/asset/today?apiKeyId=${activeKeyId}`,
+          {headers: authHeaders()}
+        )
+      } else {
+        dataRes = await fetch(
+          `${API_ORIGIN}/api/asset/history?apiKeyId=${activeKeyId}&days=${days}`,
+          {headers: authHeaders()}
         )
       }
+
+      const pRes = await fetch(
+        `${API_ORIGIN}/api/asset/period-analysis?apiKeyId=${activeKeyId}&start=${rangeDates.start}&end=${rangeDates.end}`,
+        {headers: authHeaders()}
+      )
+
+      if (is1d) {
+        const todayJson = await dataRes.json()
+        if (todayJson.success) setTodayData(todayJson.data)
+        setOhlcData([])
+      } else {
+        const histJson = await dataRes.json()
+        if (histJson.success) {
+          const raw = Array.isArray(histJson.data)
+            ? histJson.data
+            : (histJson.data?.ohlc ?? [])
+          setOhlcData(
+            (Array.isArray(raw) ? raw : []).sort((a: any, b: any) =>
+              a.date.localeCompare(b.date)
+            )
+          )
+        }
+        setTodayData([])
+      }
+
+      const pJson = await pRes.json()
+      if (pJson.success) setPeriodAnalysis(pJson.data)
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [loggedIn, days, selectedKeyId])
+  }, [
+    loggedIn,
+    days,
+    selectedKeyId,
+    rangeDates.start,
+    rangeDates.end,
+    timeRange,
+    customRange
+  ])
 
   useEffect(() => {
     fetchAll()
@@ -217,10 +290,25 @@ export default function AssetPage() {
 
   const currentKeyAsset = selectedKeyId ? currentAssets?.[selectedKeyId] : null
   const selectedToday = useMemo(() => {
-    if (!todayData?.length) return null
-    if (selectedKeyId)
-      return todayData.find((d: any) => d.keyId === selectedKeyId) ?? null
-    return todayData[0] ?? null
+    if (!todayData) return null
+    // 按 Key 请求时，todayData 是 { extremes, intraday }
+    if (
+      selectedKeyId &&
+      typeof todayData === 'object' &&
+      !Array.isArray(todayData)
+    ) {
+      return todayData as {
+        extremes: AssetTodayExtremes | null
+        intraday: Array<{time: string; value: number}>
+      }
+    }
+    // 旧格式兼容（全量请求时是数组）
+    if (Array.isArray(todayData) && todayData.length > 0) {
+      if (selectedKeyId)
+        return todayData.find((d: any) => d.keyId === selectedKeyId) ?? null
+      return todayData[0]
+    }
+    return null
   }, [todayData, selectedKeyId])
   const extremes: AssetTodayExtremes | null = selectedToday?.extremes ?? null
   const intraday = selectedToday?.intraday ?? []
@@ -250,26 +338,32 @@ export default function AssetPage() {
     return {diff, pct}
   }, [ohlcData, currentKeyAsset])
 
-  // ─── 累计收益额 / ROI / 历史最大回撤 ───
-  const {cumPnl, roi, maxDrawdown} = useMemo(() => {
-    if (!currentKeyAsset || ohlcData.length === 0)
-      return {cumPnl: 0, roi: 0, maxDrawdown: 0}
-    const first = ohlcData[0].openVal
-    const current = currentKeyAsset.totalNetVal
-    const netDep = currentKeyAsset.netDeposit ?? 0
-    const adjustedCurrent = current - netDep // 剔除出入金干扰
-    const pnl = adjustedCurrent - first
-    const roiVal = first > 0 ? (pnl / first) * 100 : 0
-
-    let peak = ohlcData[0].highVal
-    let mdd = 0
-    for (const o of ohlcData) {
-      if (o.highVal > peak) peak = o.highVal
-      const dd = peak > 0 ? ((peak - o.lowVal) / peak) * 100 : 0
-      if (dd > mdd) mdd = dd
-    }
-    return {cumPnl: pnl, roi: roiVal, maxDrawdown: mdd}
-  }, [currentKeyAsset, ohlcData])
+  // ─── 区间分析指标（由后端计算） ───
+  const {
+    periodPnL,
+    periodROI,
+    rawChange,
+    annualizedROI,
+    periodMDD,
+    mddStartDate,
+    mddEndDate,
+    days: periodDays,
+    netDeposit
+  } = useMemo(() => {
+    if (!periodAnalysis)
+      return {
+        periodPnL: null,
+        periodROI: null,
+        rawChange: null,
+        annualizedROI: null,
+        periodMDD: null,
+        mddStartDate: null,
+        mddEndDate: null,
+        days: 0,
+        netDeposit: 0
+      }
+    return periodAnalysis
+  }, [periodAnalysis])
 
   // ─── 走势图数据（完整时间网格，无数据补0） ───
   const chartData = useMemo(() => {
@@ -340,6 +434,17 @@ export default function AssetPage() {
           <h1 className="text-lg font-bold">资产分析</h1>
         </div>
         <div className="flex items-center gap-1 bg-[#18181b] border border-gray-800 rounded-lg p-0.5">
+          <button
+            onClick={() => setPrivacyMode(!privacyMode)}
+            className={`px-2 py-1 rounded-md transition-colors ${privacyMode ? 'bg-amber-500/15 text-amber-400' : 'text-gray-500 hover:text-gray-300'}`}
+            title={privacyMode ? '显示金额' : '隐藏金额'}
+          >
+            {privacyMode ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Eye className="w-3.5 h-3.5" />
+            )}
+          </button>
           {Object.keys(FX_RATES).map(code => (
             <button
               key={code}
@@ -382,15 +487,18 @@ export default function AssetPage() {
         <>
           {keyIds.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
-              {keyIds.map(kid => (
-                <button
-                  key={kid}
-                  onClick={() => setSelectedKeyId(kid)}
-                  className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${selectedKeyId === kid ? 'bg-primary/15 text-primary font-medium border border-primary/30' : 'bg-[#18181b] border border-gray-800 text-gray-400 hover:text-gray-200'}`}
-                >
-                  Key #{kid}
-                </button>
-              ))}
+              {keyIds.map(kid => {
+                const label = currentAssets?.[kid]?.label ?? `Key #${kid}`
+                return (
+                  <button
+                    key={kid}
+                    onClick={() => setSelectedKeyId(kid)}
+                    className={`px-3 py-1.5 rounded-lg text-xs transition-colors ${selectedKeyId === kid ? 'bg-primary/15 text-primary font-medium border border-primary/30' : 'bg-[#18181b] border border-gray-800 text-gray-400 hover:text-gray-200'}`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
             </div>
           )}
 
@@ -413,7 +521,11 @@ export default function AssetPage() {
                     总资产 ({currency})
                   </p>
                   <p className="text-lg font-bold tabular-nums">
-                    {fmtFull(currentKeyAsset.totalNetVal, currency)}
+                    {fmtMask(
+                      currentKeyAsset.totalNetVal,
+                      privacyMode,
+                      currency
+                    )}
                   </p>
                   <div className="flex items-center gap-2 mt-1 text-[9px]">
                     <span
@@ -444,10 +556,19 @@ export default function AssetPage() {
                 </div>
                 {Object.keys(MODULE_LABELS).map(key => {
                   const Icon = MODULE_ICONS[key]
+                  const val = (currentKeyAsset as any)[key] ?? 0
+                  const total = currentKeyAsset.totalNetVal
+                  const pct = total > 0 ? (val / total) * 100 : 0
+                  const isSelected = selectedModule === key
                   return (
                     <div
                       key={key}
-                      className="bg-[#18181b] rounded-xl border border-gray-800 p-3"
+                      onClick={() => setSelectedModule(isSelected ? null : key)}
+                      className={`bg-[#18181b] rounded-xl border p-3 cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-primary/40 ring-1 ring-primary/20'
+                          : 'border-gray-800 hover:border-gray-700'
+                      }`}
                     >
                       <div className="flex items-center gap-1 mb-0.5">
                         <Icon
@@ -459,52 +580,91 @@ export default function AssetPage() {
                         </p>
                       </div>
                       <p className="text-sm font-bold tabular-nums">
-                        {fmt((currentKeyAsset as any)[key] ?? 0, currency)}
+                        {fmtMask(val, privacyMode, currency)}
+                      </p>
+                      {/* 占比条 */}
+                      <div className="mt-1.5 h-1 bg-gray-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.min(pct, 100)}%`,
+                            backgroundColor: MODULE_COLORS[key]
+                          }}
+                        />
+                      </div>
+                      <p className="text-[8px] text-gray-600 mt-0.5">
+                        {pct.toFixed(1)}%
                       </p>
                     </div>
                   )
                 })}
               </div>
 
-              {/* ═══ 第二行：分析指标 ═══ */}
-              <div className="grid grid-cols-3 gap-2 mb-4">
+              {/* ═══ 第二行：区间分析指标 ═══ */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                 <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
                   <p className="text-[10px] text-muted-foreground mb-0.5">
-                    累计收益额
+                    收益
+                    <span className="text-gray-600 ml-1">
+                      ({periodDays || '--'}天)
+                    </span>
                   </p>
                   <p
-                    className={`text-sm font-bold tabular-nums ${cumPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+                    className={`text-sm font-bold tabular-nums ${periodPnL !== null && periodPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
                   >
-                    {fmtFull(cumPnl, currency)}
+                    {fmtMask(periodPnL, privacyMode, currency)}
                   </p>
-                  {(currentKeyAsset?.netDeposit ?? 0) !== 0 && (
-                    <p className="text-[8px] text-gray-600 mt-0.5">
-                      净入金 {fmtFull(currentKeyAsset!.netDeposit!, currency)}
-                    </p>
-                  )}
+                  <p className="text-[8px] text-gray-600 mt-0.5">
+                    净充值
+                    {netDeposit !== 0 && (
+                      <> {fmtMask(netDeposit, privacyMode, currency)}</>
+                    )}
+                  </p>
                 </div>
                 <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
                   <div className="flex items-center gap-1 mb-0.5">
                     <Percent className="w-3 h-3 text-gray-500" />
                     <p className="text-[10px] text-muted-foreground">
-                      累计收益率 (ROI)
+                      区间收益率 (ROI)
                     </p>
                   </div>
                   <p
-                    className={`text-sm font-bold tabular-nums ${roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+                    className={`text-sm font-bold tabular-nums ${periodROI !== null && periodROI >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
                   >
-                    {roi.toFixed(2)}%
+                    {periodROI !== null
+                      ? `${periodROI >= 0 ? '+' : ''}${periodROI.toFixed(2)}%`
+                      : '--'}
                   </p>
+                  {annualizedROI !== null && (
+                    <p className="text-[8px] text-gray-500 mt-0.5">
+                      年化 {annualizedROI >= 0 ? '+' : ''}
+                      {annualizedROI.toFixed(2)}%
+                    </p>
+                  )}
                 </div>
                 <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
                   <div className="flex items-center gap-1 mb-0.5">
                     <History className="w-3 h-3 text-gray-500" />
                     <p className="text-[10px] text-muted-foreground">
-                      历史最大回撤 (MDD)
+                      区间最大回撤 (MDD)
                     </p>
                   </div>
                   <p className="text-sm font-bold tabular-nums text-red-400">
-                    {maxDrawdown.toFixed(2)}%
+                    {periodMDD !== null ? `${periodMDD.toFixed(2)}%` : '--'}
+                  </p>
+                  {mddStartDate && mddEndDate && (
+                    <p className="text-[8px] text-gray-600 mt-0.5">
+                      {mddStartDate} ~ {mddEndDate}
+                    </p>
+                  )}
+                </div>
+                <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 flex items-center justify-center">
+                  <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
+                    所选区间
+                    <br />
+                    <span className="text-xs font-medium text-gray-300">
+                      {rangeDates.start} ~ {rangeDates.end}
+                    </span>
                   </p>
                 </div>
               </div>
@@ -532,12 +692,59 @@ export default function AssetPage() {
                       {(Object.keys(RANGE_LABELS) as TimeRange[]).map(r => (
                         <button
                           key={r}
-                          onClick={() => setTimeRange(r)}
-                          className={`px-2 py-1 text-xs rounded-md transition-colors ${timeRange === r ? 'bg-primary/15 text-primary font-medium' : 'text-gray-500 hover:text-gray-300'}`}
+                          onClick={() => {
+                            setTimeRange(r)
+                            setCustomRange(null)
+                          }}
+                          className={`px-2 py-1 text-xs rounded-md transition-colors ${timeRange === r && !customRange ? 'bg-primary/15 text-primary font-medium' : 'text-gray-500 hover:text-gray-300'}`}
                         >
                           {RANGE_LABELS[r]}
                         </button>
                       ))}
+                      {customRange ? (
+                        <>
+                          <input
+                            type="date"
+                            value={customRange.start}
+                            onChange={e => {
+                              setCustomRange({
+                                ...customRange,
+                                start: e.target.value
+                              })
+                              setLoading(true)
+                            }}
+                            className="w-20 px-1 py-1 text-[10px] bg-transparent border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-primary/50"
+                          />
+                          <span className="text-[10px] text-gray-600">~</span>
+                          <input
+                            type="date"
+                            value={customRange.end}
+                            onChange={e => {
+                              setCustomRange({
+                                ...customRange,
+                                end: e.target.value
+                              })
+                              setLoading(true)
+                            }}
+                            className="w-20 px-1 py-1 text-[10px] bg-transparent border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-primary/50"
+                          />
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const end = new Date().toISOString().slice(0, 10)
+                            const start = new Date(Date.now() - 30 * 86400000)
+                              .toISOString()
+                              .slice(0, 10)
+                            setCustomRange({start, end})
+                            setLoading(true)
+                          }}
+                          className="px-2 py-1 text-xs rounded-md text-gray-500 hover:text-gray-300 transition-colors"
+                          title="自定义日期范围"
+                        >
+                          <CalendarRange className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   {chartData.length > 1 ? (

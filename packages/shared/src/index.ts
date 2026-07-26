@@ -327,3 +327,16 @@ export interface AssetSnapshotRow {
   futuresCoinVal: string | null
   earnVal: string | null
 }
+
+// ─── 区间分析 ───
+export interface AssetPeriodAnalysis {
+  periodPnL: number
+  periodROI: number
+  rawChange: number
+  annualizedROI: number | null
+  periodMDD: number
+  mddStartDate: string | null
+  mddEndDate: string | null
+  days: number
+  netDeposit: number
+}

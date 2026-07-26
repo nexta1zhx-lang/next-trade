@@ -316,13 +316,23 @@ export async function collectAssetSnapshot(
     {name: 'earnFlex', status: earnFlexRaw.status, err: earnFlexRaw},
     {name: 'earnLocked', status: earnLockedRaw.status, err: earnLockedRaw}
   ]
-  for (const m of moduleResults) {
-    if (m.status === 'rejected') {
-      console.error(
-        `[AssetSnapshot] key=${apiKeyId} ${m.name} 采集失败:`,
-        (m.err as any).reason?.message
-      )
-    }
+  // 记录各模块失败原因
+  const failedModules = moduleResults.filter(m => m.status === 'rejected')
+  for (const m of failedModules) {
+    console.error(
+      `[AssetSnapshot] key=${apiKeyId} ${m.name} 采集失败:`,
+      (m.err as any).reason?.message
+    )
+  }
+
+  // 全部模块失败时抛出异常，触发 BullMQ 重试（最多 3 次，指数退避）
+  if (failedModules.length === moduleResults.length) {
+    const reasons = failedModules
+      .map(m => `${m.name}=${(m.err as any).reason?.message ?? 'unknown'}`)
+      .join('; ')
+    throw new Error(
+      `[AssetSnapshot] key=${apiKeyId} 全部 6 个模块采集失败: ${reasons}`
+    )
   }
 
   // USDT 折算（带错误兜底）
@@ -390,6 +400,7 @@ export async function collectAssetSnapshot(
   )
 
   await updateRedisCache(apiKeyId, {
+    label: keyRecord.accountLabel || `Key #${apiKeyId}`,
     totalNetVal,
     fundingVal,
     spotVal,
@@ -421,6 +432,7 @@ export async function collectAssetSnapshot(
 // ─── Redis 缓存 ───
 
 interface RedisAssetCache {
+  label: string
   totalNetVal: number
   fundingVal: number
   spotVal: number
@@ -520,17 +532,10 @@ export async function getTodayExtremes(apiKeyId: number): Promise<{
   lowVal: number
   lowTime: Date | null
 } | null> {
-  const [earliest] = await db
-    .select({sa: accountSnapshots.snapshotAt})
-    .from(accountSnapshots)
-    .where(eq(accountSnapshots.apiKeyId, apiKeyId))
-    .orderBy(accountSnapshots.snapshotAt)
-    .limit(1)
-  const since = earliest
-    ? new Date(
-        Math.max(earliest.sa.getTime(), Date.now() - 24 * 60 * 60 * 1000)
-      ).toISOString()
-    : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  // 使用当天 UTC 00:00 作为起始时间，而非滚动 24h
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+  const since = todayStart.toISOString()
   const rows = await db
     .select({
       totalNetVal: accountSnapshots.totalNetVal,
@@ -566,17 +571,10 @@ export async function getTodayExtremes(apiKeyId: number): Promise<{
 export async function getTodayIntraday(
   apiKeyId: number
 ): Promise<Array<{time: string; value: number}>> {
-  const [earliest] = await db
-    .select({sa: accountSnapshots.snapshotAt})
-    .from(accountSnapshots)
-    .where(eq(accountSnapshots.apiKeyId, apiKeyId))
-    .orderBy(accountSnapshots.snapshotAt)
-    .limit(1)
-  const since = earliest
-    ? new Date(
-        Math.max(earliest.sa.getTime(), Date.now() - 24 * 60 * 60 * 1000)
-      ).toISOString()
-    : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  // 使用当天 UTC 00:00 作为起始时间
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+  const since = todayStart.toISOString()
   const rows = await db
     .select({
       totalNetVal: accountSnapshots.totalNetVal,
@@ -710,4 +708,105 @@ export async function getCachedCurrentAssets(
   if (redis.status !== 'ready') return null
   const raw = await redis.get(`asset:current:${userId}`)
   return raw ? JSON.parse(raw) : null
+}
+
+// ─── 区间分析 ───
+
+export interface PeriodAnalysis {
+  periodPnL: number // 剔除充提后的交易收益
+  periodROI: number // 交易收益率
+  rawChange: number // 纯资产变动 (closeVal - openVal)
+  annualizedROI: number | null
+  periodMDD: number
+  mddStartDate: string | null
+  mddEndDate: string | null
+  days: number
+  netDeposit: number
+}
+
+/**
+ * 计算指定日期区间的收益与风控指标
+ *
+ * @param apiKeyId  API Key ID
+ * @param startDate 起始日期 YYYY-MM-DD（含）
+ * @param endDate   结束日期 YYYY-MM-DD（含）
+ */
+export async function getPeriodAnalysis(
+  apiKeyId: number,
+  startDate: string,
+  endDate: string,
+  netDeposit?: number
+): Promise<PeriodAnalysis | null> {
+  const rows = await db
+    .select()
+    .from(dailySummaries)
+    .where(
+      and(
+        eq(dailySummaries.apiKeyId, apiKeyId),
+        sql`${dailySummaries.date} >= ${startDate}`,
+        sql`${dailySummaries.date} <= ${endDate}`
+      )
+    )
+    .orderBy(dailySummaries.date)
+
+  if (rows.length < 2) {
+    // 不足 2 条数据无法计算区间
+    return null
+  }
+
+  const first = rows[0]
+  const last = rows[rows.length - 1]
+  const openVal = Number(first.openVal)
+  const closeVal = Number(last.closeVal)
+
+  // 净充值（可选传入，避免重复查询）
+  let netDep = netDeposit ?? 0
+  if (netDeposit === undefined) {
+    const {getNetDeposits} = await import('./capitalFlowService.js')
+    netDep = await getNetDeposits(apiKeyId, startDate, endDate)
+  }
+
+  // 实际区间天数（按起止日期算，而非 rows.length — 数据可能不连续）
+  const days =
+    Math.round(
+      (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86_400_000
+    ) + 1
+  const rawChange = closeVal - openVal
+  const periodPnL = rawChange - netDep
+  const periodROI = openVal > 0 ? (periodPnL / openVal) * 100 : 0
+  const annualizedROI = days > 0 && days < 365 ? (periodROI * 365) / days : null
+
+  // 区间最大回撤
+  let peak = Number(first.highVal)
+  let mdd = 0
+  let mddPeakDate = first.date
+  let mddStartDate: string | null = null
+  let mddEndDate: string | null = null
+
+  for (const r of rows) {
+    const h = Number(r.highVal)
+    const l = Number(r.lowVal)
+    if (h > peak) {
+      peak = h
+      mddPeakDate = r.date
+    }
+    const dd = peak > 0 ? ((peak - l) / peak) * 100 : 0
+    if (dd > mdd) {
+      mdd = dd
+      mddStartDate = mddPeakDate
+      mddEndDate = r.date
+    }
+  }
+
+  return {
+    periodPnL,
+    periodROI,
+    rawChange,
+    annualizedROI,
+    periodMDD: mdd,
+    mddStartDate,
+    mddEndDate,
+    days,
+    netDeposit: netDep
+  }
 }

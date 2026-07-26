@@ -158,20 +158,23 @@ export async function syncCapitalFlows(apiKeyId: number): Promise<{
  */
 export async function getNetDeposits(
   apiKeyId: number,
-  sinceDate: string
+  sinceDate: string,
+  untilDate?: string
 ): Promise<number> {
+  const conditions = [
+    eq(capitalFlows.apiKeyId, apiKeyId),
+    sql`${capitalFlows.flowDate} >= ${sinceDate}`
+  ]
+  if (untilDate) {
+    conditions.push(sql`${capitalFlows.flowDate} <= ${untilDate}`)
+  }
   const rows = await db
     .select({
       flowType: capitalFlows.flowType,
       amount: capitalFlows.amount
     })
     .from(capitalFlows)
-    .where(
-      and(
-        eq(capitalFlows.apiKeyId, apiKeyId),
-        sql`${capitalFlows.flowDate} >= ${sinceDate}`
-      )
-    )
+    .where(and(...conditions))
 
   let net = 0
   for (const r of rows) {

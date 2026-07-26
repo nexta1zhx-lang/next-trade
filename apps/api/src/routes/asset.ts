@@ -1,12 +1,13 @@
 /**
  * 资产模块路由 — 精简版
  *
- * GET    /api/asset/current              — 当前最新资产（Redis 缓存）
- * GET    /api/asset/today                — 今日极值 + 分时数据
- * GET    /api/asset/history?days=90      — 历史日 K 线 OHLC
- * GET    /api/asset/detail?apiKeyId=&since= — 历史每小时快照明细
- * POST   /api/asset/collect              — 手动触发采集（当前用户所有 Key）
- * POST   /api/asset/collect/:apiKeyId    — 手动触发指定 Key 采集
+ * GET    /api/asset/current                        — 当前最新资产（Redis 缓存）
+ * GET    /api/asset/today                          — 今日极值 + 分时数据
+ * GET    /api/asset/history?days=90                — 历史日 K 线 OHLC
+ * GET    /api/asset/period-analysis?apiKeyId=&start=&end= — 区间分析
+ * GET    /api/asset/detail?apiKeyId=&since=        — 历史每小时快照明细
+ * POST   /api/asset/collect                        — 手动触发采集（当前用户所有 Key）
+ * POST   /api/asset/collect/:apiKeyId              — 手动触发指定 Key 采集
  */
 
 import {Hono} from 'hono'
@@ -22,7 +23,8 @@ import {
   getDailyOHLC,
   getSnapshots,
   getLatestSnapshot,
-  getCachedCurrentAssets
+  getCachedCurrentAssets,
+  getPeriodAnalysis
 } from '../services/assetService.js'
 import {getNetDeposits} from '../services/capitalFlowService.js'
 import {
@@ -84,6 +86,7 @@ router.get('/current', async c => {
 
     result[key.id] = latest
       ? {
+          label: key.accountLabel || `Key #${key.id}`,
           totalNetVal: latest.totalNetVal,
           fundingVal: latest.fundingVal,
           spotVal: latest.spotVal,
@@ -211,6 +214,38 @@ router.get('/history', zValidator('query', historyQuerySchema), async c => {
 
   return c.json({success: true, data: allData})
 })
+
+// ═══════════════════════════════════════════
+// GET /api/asset/period-analysis — 区间分析
+// ═══════════════════════════════════════════
+
+const periodQuerySchema = z.object({
+  apiKeyId: z.coerce.number(),
+  start: z.string(), // YYYY-MM-DD
+  end: z.string() // YYYY-MM-DD
+})
+
+router.get(
+  '/period-analysis',
+  zValidator('query', periodQuerySchema),
+  async c => {
+    const userId = (c as any).get('userId') as number
+    const {apiKeyId, start, end} = c.req.valid('query')
+
+    // 验证归属
+    const [key] = await db
+      .select({id: apiKeys.id})
+      .from(apiKeys)
+      .where(and(eq(apiKeys.id, apiKeyId), eq(apiKeys.userId, userId)))
+      .limit(1)
+    if (!key) return c.json({success: false, error: 'API Key not found'}, 404)
+
+    const netDep = await getNetDeposits(apiKeyId, start, end)
+    const result = await getPeriodAnalysis(apiKeyId, start, end, netDep)
+
+    return c.json({success: true, data: result})
+  }
+)
 
 // ═══════════════════════════════════════════
 // GET /api/asset/detail — 历史每小时快照明细
