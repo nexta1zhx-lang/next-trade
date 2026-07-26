@@ -35,6 +35,7 @@ import type {TrendLine} from '@/components/chart/DrawingOverlay'
 import type {DailyAnalysisItem} from '@nexttrade/shared'
 import type {CrosshairInfo} from '@/components/chart/KlineChart'
 import {authHeaders, checkResponse, getToken} from '@/lib/api'
+import {generateId} from '@/lib/utils'
 
 const TIMEFRAMES = ['15m', '1h', '4h', '1d'] as const
 const PRESET_TAGS = [
@@ -288,7 +289,7 @@ export default function SymbolDetail({
   )
 
   const handleAddDrawing = useCallback((line: Omit<TrendLine, 'id'>) => {
-    setDrawings(prev => [...(prev ?? []), {...line, id: crypto.randomUUID()}])
+    setDrawings(prev => [...(prev ?? []), {...line, id: generateId()}])
     if (line.type !== 'trendline') setActiveTool('cursor')
   }, [])
   const handleDeleteDrawing = useCallback(

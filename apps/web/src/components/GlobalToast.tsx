@@ -4,6 +4,7 @@ import {useEffect, useState} from 'react'
 import {X, LogIn} from 'lucide-react'
 import {useRouter} from 'next/navigation'
 import {UNAUTHORIZED_EVENT, getToken} from '@/lib/api'
+import {generateId} from '@/lib/utils'
 
 interface Toast {
   id: string
@@ -20,7 +21,7 @@ export default function GlobalToast() {
     const on401 = () => {
       // 未登录用户不弹 401
       if (!getToken()) return
-      const id = crypto.randomUUID()
+      const id = generateId()
       setToasts(prev => [
         ...prev,
         {
