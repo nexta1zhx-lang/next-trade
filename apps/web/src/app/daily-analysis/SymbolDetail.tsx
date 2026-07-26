@@ -668,7 +668,10 @@ export default function SymbolDetail({
         className="border-t border-gray-700/30 p-3 flex-1 min-h-0 flex flex-col relative"
         ref={journalRef}
         onTouchStart={e => {
-          journalTouchStart.current = {x: e.touches[0].clientX, y: e.touches[0].clientY}
+          journalTouchStart.current = {
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY
+          }
         }}
         onTouchEnd={e => {
           if (!journalTouchStart.current) return
@@ -723,7 +726,9 @@ export default function SymbolDetail({
         </div>
         <div className="flex gap-3 flex-1 min-h-0 mt-2">
           {/* 左：新建想法 */}
-          <div className={`md:w-1/2 flex flex-col gap-1.5 flex-1 min-h-0 ${journalTab === 'history' ? 'hidden md:flex' : 'w-full'}`}>
+          <div
+            className={`md:w-1/2 flex flex-col gap-1.5 flex-1 min-h-0 ${journalTab === 'history' ? 'hidden md:flex' : 'w-full'}`}
+          >
             <input
               value={reviewTitle}
               onChange={e => setReviewTitle(e.target.value)}
@@ -748,68 +753,74 @@ export default function SymbolDetail({
                     标签
                   </span>
                   <div className="flex flex-col gap-0.5 overflow-y-auto flex-1 min-h-0">
-                  {reviewTags.map(t => (
-                    <span
-                      key={t.tag}
-                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
-                      style={{color: t.color, backgroundColor: t.color + '15'}}
-                    >
-                      <span className="truncate flex-1">{t.tag}</span>
-                      <button
-                        onClick={() => removeTag(t.tag)}
-                        className="hover:opacity-70 shrink-0"
-                      >
-                        <X className="w-2.5 h-2.5" />
-                      </button>
-                    </span>
-                  ))}
-                  {presetOrder
-                    .map(tag => PRESET_TAGS.find(p => p.tag === tag)!)
-                    .filter(p => !reviewTags.some(t => t.tag === p.tag))
-                    .map((p, idx) => (
+                    {reviewTags.map(t => (
                       <span
-                        key={p.tag}
-                        draggable
-                        onDragStart={() => setDragPresetIdx(idx)}
-                        onDragOver={e => {
-                          e.preventDefault()
-                          if (dragPresetIdx !== null && dragPresetIdx !== idx) {
-                            setPresetOrder(prev => {
-                              const arr = [...prev]
-                              const [item] = arr.splice(dragPresetIdx, 1)
-                              arr.splice(idx, 0, item)
-                              return arr
-                            })
-                            setDragPresetIdx(idx)
-                          }
-                        }}
-                        onDragEnd={() => setDragPresetIdx(null)}
-                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border transition-colors cursor-grab active:cursor-grabbing shrink-0 ${
-                          dragPresetIdx === idx
-                            ? 'opacity-40'
-                            : 'opacity-60 hover:opacity-100'
-                        }`}
+                        key={t.tag}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
                         style={{
-                          borderColor: p.color + '40',
-                          color: p.color,
-                          backgroundColor: p.color + '10'
+                          color: t.color,
+                          backgroundColor: t.color + '15'
                         }}
-                        onClick={() => addTag(p.tag, p.color)}
                       >
-                        <span className="truncate flex-1">{p.tag}</span>
+                        <span className="truncate flex-1">{t.tag}</span>
+                        <button
+                          onClick={() => removeTag(t.tag)}
+                          className="hover:opacity-70 shrink-0"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
                       </span>
                     ))}
-                  <input
-                    value={customTag}
-                    onChange={e => setCustomTag(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAddCustom()}
-                    placeholder="自定义..."
-                    className="w-full bg-[#0a0a0b] border border-gray-700 rounded px-1.5 py-0.5 text-[10px] text-gray-400
+                    {presetOrder
+                      .map(tag => PRESET_TAGS.find(p => p.tag === tag)!)
+                      .filter(p => !reviewTags.some(t => t.tag === p.tag))
+                      .map((p, idx) => (
+                        <span
+                          key={p.tag}
+                          draggable
+                          onDragStart={() => setDragPresetIdx(idx)}
+                          onDragOver={e => {
+                            e.preventDefault()
+                            if (
+                              dragPresetIdx !== null &&
+                              dragPresetIdx !== idx
+                            ) {
+                              setPresetOrder(prev => {
+                                const arr = [...prev]
+                                const [item] = arr.splice(dragPresetIdx, 1)
+                                arr.splice(idx, 0, item)
+                                return arr
+                              })
+                              setDragPresetIdx(idx)
+                            }
+                          }}
+                          onDragEnd={() => setDragPresetIdx(null)}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border transition-colors cursor-grab active:cursor-grabbing shrink-0 ${
+                            dragPresetIdx === idx
+                              ? 'opacity-40'
+                              : 'opacity-60 hover:opacity-100'
+                          }`}
+                          style={{
+                            borderColor: p.color + '40',
+                            color: p.color,
+                            backgroundColor: p.color + '10'
+                          }}
+                          onClick={() => addTag(p.tag, p.color)}
+                        >
+                          <span className="truncate flex-1">{p.tag}</span>
+                        </span>
+                      ))}
+                    <input
+                      value={customTag}
+                      onChange={e => setCustomTag(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleAddCustom()}
+                      placeholder="自定义..."
+                      className="w-full bg-[#0a0a0b] border border-gray-700 rounded px-1.5 py-0.5 text-[10px] text-gray-400
                                placeholder:text-gray-700 focus:outline-none focus:border-blue-500 mt-1 shrink-0"
-                  />
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
             </div>
             {/* 保存按钮 - 固定在底部 */}
             <div className="flex items-center gap-2 shrink-0 pt-0.5">
@@ -821,7 +832,10 @@ export default function SymbolDetail({
                     style={{color: t.color, backgroundColor: t.color + '15'}}
                   >
                     {t.tag}
-                    <button onClick={() => removeTag(t.tag)} className="hover:opacity-70">
+                    <button
+                      onClick={() => removeTag(t.tag)}
+                      className="hover:opacity-70"
+                    >
                       <X className="w-2.5 h-2.5" />
                     </button>
                   </span>
@@ -838,7 +852,9 @@ export default function SymbolDetail({
           </div>
 
           {/* 右：历史想法 */}
-          <div className={`md:w-1/2 md:border-l md:border-gray-700/30 md:pl-3 overflow-y-auto space-y-1 ${journalTab === 'new' ? 'hidden md:block' : 'w-full'}`}>
+          <div
+            className={`md:w-1/2 md:border-l md:border-gray-700/30 md:pl-3 overflow-y-auto space-y-1 ${journalTab === 'new' ? 'hidden md:block' : 'w-full'}`}
+          >
             {reviews.length === 0 ? (
               <p className="text-xs text-gray-600 py-2">暂无想法记录</p>
             ) : (
