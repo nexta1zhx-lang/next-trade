@@ -211,9 +211,7 @@ async function fetchAllDailyOHLCV(date: string): Promise<ComputedMarket[]> {
   }
 
   // 计算排名
-  const byAmplitude = [...computed].sort(
-    (a, b) => b.amplitude - a.amplitude
-  )
+  const byAmplitude = [...computed].sort((a, b) => b.amplitude - a.amplitude)
   const byGain = [...computed].sort((a, b) => b.change - a.change)
   const byLoss = [...computed].sort((a, b) => a.change - b.change)
 

@@ -24,7 +24,7 @@ const WS_BASE =
  */
 export function useTickerWs(
   onTickers: (tickers: TickerData[]) => void,
-  enabled = true,
+  enabled = true
 ) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -58,8 +58,8 @@ export function useTickerWs(
       reconnectRef.current = setTimeout(connect, delay)
     }
 
-    ws.onerror = (e) => {
-      console.error('[ws ticker] error:', e)
+    ws.onerror = () => {
+      // 浏览器不暴露 WebSocket 错误详情，直接关闭触发重连
       ws.close()
     }
 

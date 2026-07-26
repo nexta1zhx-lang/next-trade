@@ -137,7 +137,10 @@ router.get('/', zValidator('query', querySchema), async c => {
     return c.json({success: false, error: '采集完成但无数据'}, 502)
   } catch (err) {
     console.error('[daily-analysis] 采集失败:', err)
-    return c.json({success: false, error: `采集失败: ${(err as Error).message}`}, 502)
+    return c.json(
+      {success: false, error: `采集失败: ${(err as Error).message}`},
+      502
+    )
   }
 })
 

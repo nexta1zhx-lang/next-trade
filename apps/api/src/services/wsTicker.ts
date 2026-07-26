@@ -11,7 +11,7 @@
  *     → subscribers (SSE 端点)
  *     → 前端 EventSource
  *
- * URL: wss://fstream.binance.com/ws/!miniTicker@arr
+ * URL: wss://fstream.binance.com/market/ws/!miniTicker@arr
  * 数据格式(单流): [{e:"24hrMiniTicker",E:...,s:"BTCUSDT",c:"...",o:"...",...}, ...]
  */
 
@@ -52,7 +52,7 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let subscribers = new Set<TickerCallback>()
 
-const WS_URL = 'wss://fstream.binance.com/ws/!miniTicker@arr'
+const WS_URL = 'wss://fstream.binance.com/market/ws/!miniTicker@arr'
 const RECONNECT_DELAY = 5000
 
 // ─── 工具 ───
