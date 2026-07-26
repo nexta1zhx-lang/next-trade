@@ -1,21 +1,25 @@
+/**
+ * 每日行情采集服务 — 原生 HTTP 版
+ *
+ * 直接 fetch Binance USDⓈ-M Futures REST API，内置令牌桶速率限制，
+ * 单轮并发抓取全量 USDT 永续合约日线 OHLCV。
+ *
+ * Binance 限制: 2400 req/min (IP)
+ * 我们的策略: 30 req/s 令牌桶 = 1800/min，留足余量
+ */
+
 import {db} from '../db/index.js'
 import {dailyMarketData} from '../db/schema.js'
 import {redis} from './redis.js'
-import {getBinanceFuture} from './exchange.js'
-import type ccxt from 'ccxt'
 
-interface MarketMeta {
-  id: string
-  symbol: string
-  base: string
-  quote: string
-  active: boolean
-  swap: boolean
-  linear: boolean
-}
+// ─── 常量 ───
+
+const FAPI_BASE = 'https://fapi.binance.com'
+const RATE_LIMIT = 30 // 每秒最多请求数
+const CONCURRENCY = 10 // 并发 worker 数
+const REQ_DELAY_MS = 50 // 每个请求前等待 ms
 
 interface RawOHLCV {
-  id: string
   symbol: string
   base: string
   open: number
@@ -35,7 +39,85 @@ interface ComputedMarket extends RawOHLCV {
   rankLoss: number
 }
 
-// ─── 并发控制器 ───
+// ─── 令牌桶限流器 ───
+
+class TokenBucket {
+  private tokens: number
+  private lastRefill: number
+  private maxTokens: number
+
+  constructor(rate: number) {
+    this.tokens = rate
+    this.maxTokens = rate
+    this.lastRefill = Date.now()
+  }
+
+  async wait(): Promise<void> {
+    const now = Date.now()
+    const elapsed = (now - this.lastRefill) / 1000
+    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * RATE_LIMIT)
+    this.lastRefill = now
+
+    if (this.tokens >= 1) {
+      this.tokens -= 1
+      return
+    }
+
+    // 需要等待的时间 (秒)
+    const waitTime = ((1 - this.tokens) / RATE_LIMIT) * 1000 + 10
+    await new Promise(r => setTimeout(r, waitTime))
+    this.tokens = 0
+    this.lastRefill = Date.now()
+  }
+}
+
+const bucket = new TokenBucket(RATE_LIMIT)
+
+// ─── 原生 fetch 封装 ───
+
+async function binanceGet(path: string): Promise<any> {
+  await bucket.wait()
+  const res = await fetch(`${FAPI_BASE}${path}`)
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`)
+  }
+  return res.json()
+}
+
+// ─── 交易对缓存 ───
+
+let cachedSymbols: Array<{symbol: string; base: string}> | null = null
+
+async function getUsdtSwapSymbols(): Promise<
+  Array<{symbol: string; base: string}>
+> {
+  if (cachedSymbols) return cachedSymbols
+
+  const data = await binanceGet('/fapi/v1/exchangeInfo')
+  cachedSymbols = (data.symbols ?? [])
+    .filter(
+      (s: any) =>
+        s.contractType === 'PERPETUAL' &&
+        s.quoteAsset === 'USDT' &&
+        s.status === 'TRADING'
+    )
+    .map((s: any) => ({symbol: s.symbol, base: s.baseAsset}))
+
+  console.log(`[DailyMarket] USDT永续合约: ${cachedSymbols.length} 个`)
+  return cachedSymbols
+}
+
+function resetSymbolCache() {
+  cachedSymbols = null
+}
+
+// ─── 工具 ───
+
+function round(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
 async function asyncPool<T, R>(
   items: T[],
   concurrency: number,
@@ -50,8 +132,8 @@ async function asyncPool<T, R>(
       const idx = items.indexOf(item)
       try {
         results[idx] = await fn(item)
-      } catch (err) {
-        console.warn(`[asyncPool] 未知错误:`, (err as Error).message)
+      } catch {
+        // 静默跳过失败
       }
     }
   }
@@ -64,103 +146,49 @@ async function asyncPool<T, R>(
   return results.filter(Boolean)
 }
 
-function round(n: number): number {
-  return Math.round(n * 100) / 100
-}
+// ─── 全量日线采集 ───
 
-// ─── 带重试的单个币种 OHLCV 抓取 ───
-async function fetchSingleOHLCVWithRetry(
-  exchange: InstanceType<typeof ccxt.binance>,
-  id: string,
-  markets: MarketMeta[],
-  since: number,
-  retries = 3
-): Promise<RawOHLCV | null> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      await new Promise(r => setTimeout(r, 100 + Math.random() * 50))
-      const ohlcv = await exchange.fetchOHLCV(id, '1d', since, 1)
-      if (!ohlcv || ohlcv.length === 0) return null
-      const candle = ohlcv[0]
-      const market = markets.find(m => m.id === id)
-      return {
-        id,
-        symbol: market?.symbol ?? `${id}/USDT:USDT`,
-        base: market?.base ?? id.replace('USDT', ''),
-        open: candle[1] ?? 0,
-        high: candle[2] ?? 0,
-        low: candle[3] ?? 0,
-        close: candle[4] ?? 0,
-        volume: candle[5] ?? 0
-      } as RawOHLCV
-    } catch (err) {
-      const isLast = attempt === retries
-      if (isLast) {
-        console.warn(
-          `[DailyMarket] ${id} 抓取失败 (${retries}次重试后放弃):`,
-          (err as Error).message
-        )
-        return null
-      }
-      // 指数退避：1s, 2s, 4s
-      const delay = Math.pow(2, attempt - 1) * 1000
-      console.warn(
-        `[DailyMarket] ${id} 第${attempt}次失败，${delay}ms后重试:`,
-        (err as Error).message
-      )
-      await new Promise(r => setTimeout(r, delay))
-    }
-  }
-  return null
-}
-
-// ─── 从 Binance 抓取全量日线数据 ───
 async function fetchAllDailyOHLCV(date: string): Promise<ComputedMarket[]> {
-  const exchange = await getBinanceFuture()
-  const allMarkets = Object.values(exchange.markets) as MarketMeta[]
-  const markets = allMarkets.filter(
-    m => m.active && m.swap && m.linear && m.quote === 'USDT'
-  )
-
-  const symbols = markets.map(m => m.id)
+  const symbols = await getUsdtSwapSymbols()
   const dateUtc = new Date(`${date}T00:00:00.000Z`)
   const since = dateUtc.getTime()
 
-  // 第一轮：并发抓取（带重试）
-  const ohlcvResults = await asyncPool(symbols, 10, async (id: string) => {
-    return fetchSingleOHLCVWithRetry(exchange, id, markets, since, 3)
-  })
+  console.log(
+    `[DailyMarket] 开始采集 ${date}，共 ${symbols.length} 个币种，并发=${CONCURRENCY}，限速=${RATE_LIMIT}/s`
+  )
 
-  // 统计失败数量
-  const failedSymbols = symbols.filter((_, i) => !ohlcvResults[i])
-  if (failedSymbols.length > 0) {
-    console.warn(
-      `[DailyMarket] 首轮抓取完成，${failedSymbols.length}/${symbols.length} 个币种失败`,
-      failedSymbols.slice(0, 20).join(', ') +
-        (failedSymbols.length > 20 ? `... (共${failedSymbols.length}个)` : '')
-    )
-
-    // 第二轮：对失败的币种逐个低速重试
-    console.log(
-      `[DailyMarket] 开始第二轮低速重试 ${failedSymbols.length} 个...`
-    )
-    for (const id of failedSymbols) {
-      await new Promise(r => setTimeout(r, 500))
-      const retried = await fetchSingleOHLCVWithRetry(
-        exchange,
-        id,
-        markets,
-        since,
-        2
-      )
-      if (retried) {
-        const idx = symbols.indexOf(id)
-        ohlcvResults[idx] = retried
+  const ohlcvResults = await asyncPool(
+    symbols,
+    CONCURRENCY,
+    async ({symbol, base}) => {
+      await new Promise(r => setTimeout(r, REQ_DELAY_MS))
+      try {
+        const data = await binanceGet(
+          `/fapi/v1/klines?symbol=${symbol}&interval=1d&startTime=${since}&limit=1`
+        )
+        if (!Array.isArray(data) || data.length === 0) return null
+        const c = data[0]
+        return {
+          symbol,
+          base,
+          open: Number(c[1]) ?? 0,
+          high: Number(c[2]) ?? 0,
+          low: Number(c[3]) ?? 0,
+          close: Number(c[4]) ?? 0,
+          volume: Number(c[5]) ?? 0
+        } as RawOHLCV
+      } catch {
+        return null
       }
     }
-  }
+  )
 
-  // 计算指标（不含排名）
+  const successful = ohlcvResults.length
+  console.log(
+    `[DailyMarket] 采集完成: ${successful}/${symbols.length} 个币种成功`
+  )
+
+  // 计算指标
   const computed: Omit<
     ComputedMarket,
     'rankAmplitude' | 'rankGain' | 'rankLoss'
@@ -183,23 +211,25 @@ async function fetchAllDailyOHLCV(date: string): Promise<ComputedMarket[]> {
   }
 
   // 计算排名
-  const byAmplitude = [...computed].sort((a, b) => b.amplitude - a.amplitude)
+  const byAmplitude = [...computed].sort(
+    (a, b) => b.amplitude - a.amplitude
+  )
   const byGain = [...computed].sort((a, b) => b.change - a.change)
   const byLoss = [...computed].sort((a, b) => a.change - b.change)
 
   return computed.map(item => ({
     ...item,
-    rankAmplitude: byAmplitude.findIndex(x => x.id === item.id) + 1,
-    rankGain: byGain.findIndex(x => x.id === item.id) + 1,
-    rankLoss: byLoss.findIndex(x => x.id === item.id) + 1
+    rankAmplitude: byAmplitude.findIndex(x => x.symbol === item.symbol) + 1,
+    rankGain: byGain.findIndex(x => x.symbol === item.symbol) + 1,
+    rankLoss: byLoss.findIndex(x => x.symbol === item.symbol) + 1
   }))
 }
 
-// ─── 批量写入 daily_market_data (UPSERT) ───
+// ─── 批量写入 (UPSERT) ───
+
 async function upsertBatch(items: ComputedMarket[], dateStr: string) {
   if (items.length === 0) return 0
 
-  // 分批写入，每批 50 条
   const BATCH_SIZE = 50
   let inserted = 0
 
@@ -221,11 +251,9 @@ async function upsertBatch(items: ComputedMarket[], dateStr: string) {
       rankAmplitude: item.rankAmplitude,
       rankGain: item.rankGain,
       rankLoss: item.rankLoss,
-
       updatedAt: new Date()
     }))
 
-    // 逐条 upsert（Drizzle ORM 不支持高效 bulk upsert）
     for (const row of values) {
       await db
         .insert(dailyMarketData)
@@ -258,35 +286,66 @@ async function upsertBatch(items: ComputedMarket[], dateStr: string) {
   return inserted
 }
 
-// ─── 公开：定时采集 & 存储 ───
+async function clearRedisCache(dateStr: string) {
+  if (redis.status !== 'ready') return
+  try {
+    const keys = await redis.keys(`daily:${dateStr}:*`)
+    if (keys.length > 0) await redis.del(keys)
+  } catch {}
+}
+
+// ─── 采集锁 ───
+
+let collecting = false
+let collectingDate = ''
+
+// ─── 公开 API ───
+
+/** 定时采集昨天数据 (cron) */
 export async function collectAndStore(): Promise<{
   date: string
   count: number
 }> {
-  // 采集昨天 UTC 的数据（当天日线可能未收盘）
   const d = new Date()
   d.setUTCDate(d.getUTCDate() - 1)
   const dateStr = d.toISOString().slice(0, 10)
 
-  console.log(`[DailyMarket] 开始采集 ${dateStr} 的行情数据...`)
+  resetSymbolCache()
+  console.log(`[DailyMarket] 定时采集 ${dateStr}`)
   const data = await fetchAllDailyOHLCV(dateStr)
-  console.log(`[DailyMarket] 采集完成，共 ${data.length} 条`)
-
   const count = await upsertBatch(data, dateStr)
-  console.log(`[DailyMarket] 写入完成，共 ${count} 条`)
-
-  // 刷新 Redis 缓存
-  if (redis.status === 'ready') {
-    // 删除所有 minQuoteVolume 变体的缓存
-    const keys = await redis.keys(`daily:${dateStr}:*`)
-    if (keys.length > 0) {
-      await redis.del(keys)
-      console.log(`[DailyMarket] 清除 ${keys.length} 个 Redis 缓存`)
-    }
-  }
-
+  await clearRedisCache(dateStr)
+  console.log(`[DailyMarket] 定时采集完成: ${count} 条`)
   return {date: dateStr, count}
 }
 
-// ─── 公开：从 DB + Redis 读取（供路由使用）───
+/** 按需采集指定日期 */
+export async function collectDate(dateStr: string): Promise<{
+  date: string
+  count: number
+}> {
+  // 内存锁防并发
+  if (collecting && collectingDate === dateStr) {
+    console.log(`[DailyMarket] ${dateStr} 采集中，等待...`)
+    for (let i = 0; i < 120 && collecting; i++) {
+      await new Promise(r => setTimeout(r, 1000))
+    }
+    return {date: dateStr, count: 0}
+  }
+  collecting = true
+  collectingDate = dateStr
+
+  try {
+    resetSymbolCache()
+    const data = await fetchAllDailyOHLCV(dateStr)
+    const count = await upsertBatch(data, dateStr)
+    await clearRedisCache(dateStr)
+    console.log(`[DailyMarket] ${dateStr} 采集完成: ${count} 条`)
+    return {date: dateStr, count}
+  } finally {
+    collecting = false
+    collectingDate = ''
+  }
+}
+
 export {fetchAllDailyOHLCV, round, asyncPool, upsertBatch}

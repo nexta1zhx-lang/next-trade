@@ -5,6 +5,7 @@ allowBuilds:
   argon2: true
   bufferutil: true
   ccxt: true
+
   esbuild: true
   keccak: true
   msgpackr-extract: true

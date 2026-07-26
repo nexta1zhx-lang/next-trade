@@ -633,3 +633,40 @@ export const favoriteSymbols = pgTable(
     )
   })
 )
+
+// ═══════════════════════════════════════════
+// 合约仓位表
+// ═══════════════════════════════════════════
+export const positions = pgTable(
+  'positions',
+  {
+    id: serial('id').primaryKey(),
+    apiKeyId: integer('api_key_id')
+      .references(() => apiKeys.id)
+      .notNull(),
+    symbol: varchar('symbol', {length: 30}).notNull(),
+    positionSide: varchar('position_side', {length: 10}).notNull(),
+    status: varchar('status', {length: 10}).notNull().default('OPEN'),
+    entryPrice: numeric('entry_price', {precision: 24, scale: 8}).notNull(),
+    exitPrice: numeric('exit_price', {precision: 24, scale: 8}),
+    quantity: numeric('quantity', {precision: 24, scale: 8}).notNull(),
+    realizedPnl: numeric('realized_pnl', {precision: 24, scale: 8}).default(
+      '0'
+    ),
+    totalFee: numeric('total_fee', {precision: 24, scale: 8}).default('0'),
+    roiPct: numeric('roi_pct', {precision: 10, scale: 4}),
+    maxDrawdownPct: numeric('max_drawdown_pct', {precision: 10, scale: 4}),
+    holdingSeconds: integer('holding_seconds'),
+    isLiquidation: boolean('is_liquidation').default(false),
+    entryTradeIds: jsonb('entry_trade_ids').default('[]'),
+    exitTradeIds: jsonb('exit_trade_ids').default('[]'),
+    openedAt: timestamp('opened_at').notNull(),
+    closedAt: timestamp('closed_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull()
+  },
+  table => ({
+    keyStatusIdx: index('idx_pos_key_status').on(table.apiKeyId, table.status),
+    keySymbolIdx: index('idx_pos_key_symbol').on(table.apiKeyId, table.symbol)
+  })
+)

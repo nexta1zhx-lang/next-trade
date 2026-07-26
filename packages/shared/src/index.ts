@@ -340,3 +340,72 @@ export interface AssetPeriodAnalysis {
   days: number
   netDeposit: number
 }
+
+// ─── 合约仓位 ───
+export type PositionSide = 'LONG' | 'SHORT'
+
+export interface OpenPosition {
+  symbol: string
+  positionSide: PositionSide
+  quantity: number
+  entryPrice: number
+  markPrice: number
+  liquidationPrice: number
+  leverage: number
+  marginType: 'isolated' | 'cross'
+  unrealizedPnl: number
+  notional: number
+  updateTime: number
+}
+
+export interface PositionRecord {
+  id: number
+  apiKeyId: number
+  symbol: string
+  positionSide: PositionSide
+  status: 'OPEN' | 'CLOSED'
+  entryPrice: number
+  exitPrice: number | null
+  quantity: number
+  realizedPnl: number
+  totalFee: number
+  roiPct: number | null
+  maxDrawdownPct: number | null
+  holdingSeconds: number | null
+  isLiquidation: boolean
+  openedAt: string
+  closedAt: string | null
+}
+
+export interface PositionDetail extends PositionRecord {
+  orders: Array<{
+    tradeId: string
+    price: number
+    amount: number
+    side: string
+    realizedPnl: number
+    feeUsdt: number
+    isLiquidation: boolean
+    executedAt: string
+  }>
+  analysis: {
+    holdingTimeFormatted: string
+    netPnl: number
+    roiPct: number
+    maxDrawdownPct: number
+    winLoss: 'win' | 'loss' | 'breakeven'
+  }
+}
+
+export interface PositionSummary {
+  totalOpenPositions: number
+  totalClosedPositions: number
+  totalRealizedPnl: number
+  totalFee: number
+  winCount: number
+  lossCount: number
+  winRate: number
+  totalLiquidationCount: number
+  avgHoldingSeconds: number
+  avgRoiPct: number
+}
