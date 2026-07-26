@@ -19,6 +19,10 @@ COPY apps/web/next.config.ts apps/web/
 # 安装依赖
 RUN pnpm install --frozen-lockfile
 
+# 构建时注入 API URL（Docker Compose 传入，默认 localhost）
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # 复制源码
 COPY packages/shared/src packages/shared/src
 COPY apps/web/src apps/web/src
