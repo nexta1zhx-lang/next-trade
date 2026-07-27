@@ -1,5 +1,6 @@
 'use client'
 
+import {useState, useEffect} from 'react'
 import {
   Activity,
   TrendingUp,
@@ -22,14 +23,6 @@ import {
 // ─── 版本信息 ───
 const APP_VERSION = '0.1.0'
 const APP_BUILD = 1
-const IS_DEV =
-  typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1')
-const APK_URL = IS_DEV
-  ? '/downloads/nexttrade-v0.1.0-dev.apk'
-  : '/downloads/nexttrade-v0.1.0.apk'
-const APK_LABEL = IS_DEV ? '下载 Android APK（开发版）' : '下载 Android APK'
 
 // ─── 特性列表 ───
 interface Feature {
@@ -193,6 +186,20 @@ function ChangelogSection() {
 }
 
 export default function IntroPage() {
+  const [isDev, setIsDev] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setIsDev(
+      window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+    )
+    setMounted(true)
+  }, [])
+
+  const apkUrl = isDev
+    ? '/downloads/nexttrade-v0.1.0-dev.apk'
+    : '/downloads/nexttrade-v0.1.0.apk'
+  const apkLabel = isDev ? '下载 Android APK（开发版）' : '下载 Android APK'
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* ─── 顶部导航条 ─── */}
@@ -212,11 +219,11 @@ export default function IntroPage() {
               在线体验
             </a>
             <a
-              href={APK_URL}
+              href={mounted ? apkUrl : '/downloads/nexttrade-v0.1.0.apk'}
               download
               className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
             >
-              下载 APK
+              {mounted ? apkLabel : '下载 APK'}
             </a>
           </nav>
         </div>
@@ -247,12 +254,12 @@ export default function IntroPage() {
 
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <a
-              href={APK_URL}
+              href={mounted ? apkUrl : '/downloads/nexttrade-v0.1.0.apk'}
               download
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
             >
               <Download className="w-4 h-4" />
-              {APK_LABEL}
+              {mounted ? apkLabel : '下载 APK'}
             </a>
             <a
               href="/daily-analysis"
@@ -324,7 +331,7 @@ export default function IntroPage() {
           </h2>
 
           <a
-            href={APK_URL}
+            href={mounted ? apkUrl : '/downloads/nexttrade-v0.1.0.apk'}
             download
             className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
           >
@@ -334,10 +341,10 @@ export default function IntroPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-sm font-semibold text-foreground">
-                  {APK_LABEL}
+                  {mounted ? apkLabel : '下载 APK'}
                 </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                  {IS_DEV ? `v${APP_VERSION}-dev` : `v${APP_VERSION}`}
+                  {isDev ? `v${APP_VERSION}-dev` : `v${APP_VERSION}`}
                 </span>
               </div>
               <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
@@ -369,11 +376,9 @@ export default function IntroPage() {
               <p>
                 当前环境:{' '}
                 <code className="text-[10px] bg-muted px-1 rounded">
-                  {typeof window !== 'undefined'
-                    ? window.location.hostname
-                    : ''}
+                  {mounted ? window.location.hostname : ''}
                 </code>{' '}
-                — {IS_DEV ? '开发版，连接本地 API' : '生产版，连接正式服务器'}
+                — {isDev ? '开发版，连接本地 API' : '生产版，连接正式服务器'}
               </p>
             </div>
           </div>
