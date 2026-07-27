@@ -1,6 +1,7 @@
 'use client'
 
 import {useEffect, useRef, useCallback} from 'react'
+import {API_ORIGIN} from '@/lib/api'
 import {useUserConfig} from '@/hooks/useUserConfig'
 import {useKlineWs} from '@/hooks/useKlineWs'
 import {
@@ -109,7 +110,7 @@ export default function KlineChart({
         })
         if (since) params.set('since', String(since))
         const res = await fetch(
-          `/api/symbols/${encodeURIComponent(symbol)}/klines?${params}`
+          `${API_ORIGIN}/api/symbols/${encodeURIComponent(symbol)}/klines?${params}`
         )
         const json = await res.json()
         if (!json.success) return []

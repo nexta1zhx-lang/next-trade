@@ -2,6 +2,7 @@
 
 import {useState, useEffect} from 'react'
 import {Plus, X} from 'lucide-react'
+import {API_ORIGIN} from '@/lib/api'
 import type {SymbolTag} from '@nexttrade/shared'
 
 const PRESET_TAGS = [
@@ -28,7 +29,7 @@ export default function TagSelector({symbol}: TagSelectorProps) {
 
   useEffect(() => {
     if (!symbol) return
-    fetch(`/api/symbols/${encodeURIComponent(symbol)}/tags`)
+    fetch(`${API_ORIGIN}/api/symbols/${encodeURIComponent(symbol)}/tags`)
       .then(r => r.json())
       .then(d => {
         if (d.success) setTags(d.data)
@@ -58,10 +59,9 @@ export default function TagSelector({symbol}: TagSelectorProps) {
 
   const removeTag = async (id: number) => {
     setTags(prev => prev.filter(t => t.id !== id))
-    await fetch(
-      `/api/symbols/${encodeURIComponent(symbol)}/tags/${id}`,
-      {method: 'DELETE'}
-    ).catch(() => {})
+    await fetch(`/api/symbols/${encodeURIComponent(symbol)}/tags/${id}`, {
+      method: 'DELETE'
+    }).catch(() => {})
   }
 
   const handleAddCustom = () => {
@@ -87,7 +87,11 @@ export default function TagSelector({symbol}: TagSelectorProps) {
           <span
             key={t.id}
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium"
-            style={{backgroundColor: t.color + '20', color: t.color, border: `1px solid ${t.color}40`}}
+            style={{
+              backgroundColor: t.color + '20',
+              color: t.color,
+              border: `1px solid ${t.color}40`
+            }}
           >
             {t.tag}
             <button
@@ -100,15 +104,16 @@ export default function TagSelector({symbol}: TagSelectorProps) {
         ))}
 
         {/* 预设标签（未选中） */}
-        {!loading && unselectedPresets.map(p => (
-          <button
-            key={p.tag}
-            onClick={() => addTag(p.tag, p.color)}
-            className="px-2 py-0.5 rounded text-[11px] border border-dashed border-gray-600 text-gray-500 hover:text-gray-300 hover:border-gray-400 transition-colors"
-          >
-            +{p.tag}
-          </button>
-        ))}
+        {!loading &&
+          unselectedPresets.map(p => (
+            <button
+              key={p.tag}
+              onClick={() => addTag(p.tag, p.color)}
+              className="px-2 py-0.5 rounded text-[11px] border border-dashed border-gray-600 text-gray-500 hover:text-gray-300 hover:border-gray-400 transition-colors"
+            >
+              +{p.tag}
+            </button>
+          ))}
       </div>
 
       {/* 自定义标签输入 */}

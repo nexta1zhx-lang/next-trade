@@ -3,6 +3,7 @@
 import {useState, useCallback, useEffect, useRef} from 'react'
 import {
   X,
+  ChevronLeft,
   Tag,
   BookOpen,
   Plus,
@@ -34,7 +35,7 @@ const LeftToolbar = dynamic(() => import('@/components/chart/LeftToolbar'), {
 import type {TrendLine} from '@/components/chart/DrawingOverlay'
 import type {DailyAnalysisItem} from '@nexttrade/shared'
 import type {CrosshairInfo} from '@/components/chart/KlineChart'
-import {authHeaders, checkResponse, getToken} from '@/lib/api'
+import {API_ORIGIN, authHeaders, checkResponse, getToken} from '@/lib/api'
 import {generateId} from '@/lib/utils'
 
 const TIMEFRAMES = ['15m', '1h', '4h', '1d'] as const
@@ -136,11 +137,14 @@ export default function SymbolDetail({
         try {
           const data = JSON.parse(local)
           justSyncedRef.current = true
-          fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json', ...authHeaders()},
-            body: JSON.stringify({data})
-          })
+          fetch(
+            `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/drawings`,
+            {
+              method: 'PUT',
+              headers: {'Content-Type': 'application/json', ...authHeaders()},
+              body: JSON.stringify({data})
+            }
+          )
         } catch {}
       }
       localStorage.setItem(SAVE_MODE_KEY, 'cloud')
@@ -157,11 +161,14 @@ export default function SymbolDetail({
         if (local) {
           try {
             const data = JSON.parse(local)
-            fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
-              method: 'PUT',
-              headers: {'Content-Type': 'application/json', ...authHeaders()},
-              body: JSON.stringify({data})
-            })
+            fetch(
+              `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/drawings`,
+              {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json', ...authHeaders()},
+                body: JSON.stringify({data})
+              }
+            )
             localStorage.setItem(SAVE_MODE_KEY, 'cloud')
             setDrawSaveMode('cloud')
           } catch {}
@@ -191,10 +198,13 @@ export default function SymbolDetail({
         return
       }
       const ctrl = new AbortController()
-      fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
-        headers: authHeaders(),
-        signal: ctrl.signal
-      })
+      fetch(
+        `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/drawings`,
+        {
+          headers: authHeaders(),
+          signal: ctrl.signal
+        }
+      )
         .then(checkResponse)
         .then(r => r.json())
         .then(d => {
@@ -231,11 +241,14 @@ export default function SymbolDetail({
     if (drawings === null || drawings.length === 0) return
     const key = saveKeyRef.current
     if (drawSaveMode === 'cloud' && getToken()) {
-      fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/drawings`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json', ...authHeaders()},
-        body: JSON.stringify({data: drawings})
-      }).catch(() => {})
+      fetch(
+        `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/drawings`,
+        {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json', ...authHeaders()},
+          body: JSON.stringify({data: drawings})
+        }
+      ).catch(() => {})
     } else {
       localStorage.setItem(key, JSON.stringify(drawings))
     }
@@ -246,10 +259,13 @@ export default function SymbolDetail({
     if (!item.symbol || reviewFetchedRef.current === item.symbol) return
     reviewFetchedRef.current = item.symbol
     const ctrl = new AbortController()
-    fetch(`/api/symbols/${encodeURIComponent(item.symbol)}/reviews`, {
-      headers: authHeaders(),
-      signal: ctrl.signal
-    })
+    fetch(
+      `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/reviews`,
+      {
+        headers: authHeaders(),
+        signal: ctrl.signal
+      }
+    )
       .then(checkResponse)
       .then(r => r.json())
       .then(d => {
@@ -385,7 +401,7 @@ export default function SymbolDetail({
     setSaving(true)
     try {
       const res = await fetch(
-        `/api/symbols/${encodeURIComponent(item.symbol)}/reviews`,
+        `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/reviews`,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json', ...authHeaders()},
@@ -423,7 +439,7 @@ export default function SymbolDetail({
       setReviews(prev => prev.filter(r => r.id !== id))
       try {
         const res = await fetch(
-          `/api/symbols/${encodeURIComponent(item.symbol)}/reviews/${id}`,
+          `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/reviews/${id}`,
           {method: 'DELETE', headers: authHeaders()}
         )
         checkResponse(res)
@@ -437,11 +453,46 @@ export default function SymbolDetail({
     setReviewTags(r.tags || [])
   }
 
+  // 移动端左滑返回（绑定到父容器）
+  const touchStartRef = useRef<number | null>(null)
+  const containerRef2 = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = containerRef2.current
+    if (!el) return
+    const onTouchStart = (e: TouchEvent) => {
+      touchStartRef.current = e.touches[0].clientX
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      const start = touchStartRef.current
+      if (start === null) return
+      const dx = e.changedTouches[0].clientX - start
+      if (dx > 80) onClose()
+      touchStartRef.current = null
+    }
+    el.addEventListener('touchstart', onTouchStart)
+    el.addEventListener('touchend', onTouchEnd)
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [onClose])
+
   return (
-    <div className="rounded-xl bg-[#18181b] border border-gray-700/50 h-full flex flex-col overflow-y-auto">
+    <div
+      ref={containerRef2}
+      className="rounded-xl bg-[#18181b] border border-gray-700/50 h-full flex flex-col overflow-y-auto"
+    >
       {/* Header */}
       <div className="flex items-center justify-between p-3 md:p-4 pb-2 border-b border-gray-700/30 shrink-0 gap-2">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          {/* 移动端返回按钮 */}
+          <button
+            onClick={onClose}
+            className="md:hidden text-gray-400 hover:text-gray-200 p-1 -ml-1"
+            aria-label="返回"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
           <h3 className="text-base md:text-lg font-bold text-gray-100 shrink-0">
             {item.base}{' '}
             <span className="text-xs md:text-sm text-gray-500 font-normal">

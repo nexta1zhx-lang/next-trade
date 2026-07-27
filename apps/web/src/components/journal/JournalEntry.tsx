@@ -2,6 +2,7 @@
 
 import {useState, useEffect} from 'react'
 import {Save} from 'lucide-react'
+import {API_ORIGIN} from '@/lib/api'
 import type {SymbolJournal} from '@nexttrade/shared'
 
 interface JournalEntryProps {
@@ -36,11 +37,15 @@ export default function JournalEntry({
     setSaving(true)
     try {
       const res = await fetch(
-        `/api/symbols/${encodeURIComponent(symbol)}/journals`,
+        `${API_ORIGIN}/api/symbols/${encodeURIComponent(symbol)}/journals`,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({date, title: title.trim(), content: content.trim()})
+          body: JSON.stringify({
+            date,
+            title: title.trim(),
+            content: content.trim()
+          })
         }
       )
       const data = await res.json()

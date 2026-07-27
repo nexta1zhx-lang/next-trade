@@ -34,7 +34,22 @@ import {startProcessors} from './processor/index.js'
 const app = new Hono()
 
 // ─── 全局中间件 ───
-app.use('*', cors({origin: config.CORS_ORIGIN, credentials: true}))
+// CORS：允许 Web 端 (localhost:3000) 和 Capacitor (localhost)
+const allowedOrigins = [
+  config.CORS_ORIGIN,
+  'http://localhost',
+  'http://localhost:3000'
+]
+app.use(
+  '*',
+  cors({
+    origin: (origin: string) => {
+      if (!origin || allowedOrigins.includes(origin)) return origin
+      return config.CORS_ORIGIN
+    },
+    credentials: true
+  })
+)
 app.use('*', logger())
 
 // ─── 全局错误处理 (确保返回 JSON) ───

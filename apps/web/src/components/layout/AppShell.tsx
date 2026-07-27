@@ -49,9 +49,9 @@ export function AppShell({children}: {children: ReactNode}) {
   }, [pathname])
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+    <div className="h-screen bg-background text-foreground flex flex-col md:flex-row overflow-hidden">
       {/* ─── PC 全宽侧边栏 (lg+) ─── */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-56 lg:h-screen lg:sticky lg:top-0 border-r border-border bg-card">
+      <aside className="hidden lg:flex lg:flex-col lg:w-56 lg:h-screen lg:sticky lg:top-0 border-r border-border bg-card safe-top">
         {/* Logo */}
         <div className="h-14 flex items-center gap-2.5 px-5 border-b border-border">
           <Activity className="w-5 h-5 text-primary" />
@@ -87,7 +87,7 @@ export function AppShell({children}: {children: ReactNode}) {
       </aside>
 
       {/* ─── 平板图标侧边栏 (md ~ lg) ─── */}
-      <aside className="hidden md:flex lg:hidden md:flex-col md:w-16 md:h-screen md:sticky md:top-0 border-r border-border bg-card">
+      <aside className="hidden md:flex lg:hidden md:flex-col md:w-16 md:h-screen md:sticky md:top-0 border-r border-border bg-card safe-top">
         {/* Logo */}
         <div className="h-14 flex items-center justify-center border-b border-border">
           <Activity className="w-5 h-5 text-primary" />
@@ -116,8 +116,11 @@ export function AppShell({children}: {children: ReactNode}) {
         </nav>
       </aside>
 
-      {/* ─── 主内容区 ─── */}
-      <main className="flex-1 min-h-screen pb-16 md:pb-0 safe-bottom">
+      {/* ─── 主内容区（内部滚动，底部 tab 固定不动） ─── */}
+      <main
+        className="flex-1 h-screen overflow-y-auto safe-top"
+        style={{paddingBottom: 'calc(72px + env(safe-area-inset-bottom, 0px))'}}
+      >
         {children}
       </main>
 

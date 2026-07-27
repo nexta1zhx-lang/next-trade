@@ -8,11 +8,13 @@ import {
   ArrowUpDown,
   Star,
   Search,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft
 } from 'lucide-react'
 import type {DailyAnalysisResult, DailyAnalysisItem} from '@nexttrade/shared'
 import type {FavoriteSymbol} from '@nexttrade/shared'
 import dynamic from 'next/dynamic'
+// 导航用 window.history，避免静态导出 router.push 不生效
 import {authHeaders, getToken, API_ORIGIN} from '@/lib/api'
 import {useUserConfig} from '@/hooks/useUserConfig'
 import {useTickerWs, type TickerData} from '@/hooks/useTickerWs'
@@ -256,8 +258,22 @@ export default function DailyAnalysisPage() {
     }
   }
 
+  const selectSymbol = useCallback((item: DailyAnalysisItem) => {
+    setSelectedItem(item)
+    window.history.pushState(
+      null,
+      '',
+      `/daily-analysis?symbol=${encodeURIComponent(item.symbol)}`
+    )
+  }, [])
+
+  const closeSymbol = useCallback(() => {
+    setSelectedItem(null)
+    window.history.pushState(null, '', '/daily-analysis')
+  }, [])
+
   return (
-    <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-dvh flex flex-col overflow-hidden">
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-full flex flex-col overflow-hidden">
       <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4 mb-3 shrink-0">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
@@ -463,7 +479,7 @@ export default function DailyAnalysisPage() {
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
                               }`}
-                              onClick={() => setSelectedItem(item)}
+                              onClick={() => selectSymbol(item)}
                             >
                               {/* 序号 / 收藏图标 */}
                               <span
@@ -613,9 +629,7 @@ export default function DailyAnalysisPage() {
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
                               }`}
-                              onClick={() =>
-                                setSelectedItem(findOrCreateItem())
-                              }
+                              onClick={() => selectSymbol(findOrCreateItem())}
                             >
                               {/* 收藏图标 */}
                               <span
@@ -712,7 +726,7 @@ export default function DailyAnalysisPage() {
                                     const item = data?.rankAmplitude.find(
                                       i => i.symbol === fav.symbol
                                     )
-                                    if (item) setSelectedItem(item)
+                                    if (item) selectSymbol(item)
                                   }}
                                   className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
                                     sel
@@ -826,7 +840,7 @@ export default function DailyAnalysisPage() {
               <SymbolDetail
                 item={selectedItem}
                 selectedDate={date}
-                onClose={() => setSelectedItem(null)}
+                onClose={closeSymbol}
               />
             ) : (
               <div className="bg-[#18181b] rounded-xl border border-gray-800 flex items-center justify-center min-h-[300px] h-full">
@@ -838,13 +852,18 @@ export default function DailyAnalysisPage() {
             )}
           </div>
 
-          {/* 手机端：选中币种时全屏显示详情 */}
+          {/* 移动端全屏 K 线详情 */}
           {selectedItem && (
-            <div className="fixed inset-0 z-40 md:hidden bg-background pb-14">
+            <div
+              className="fixed inset-0 z-40 md:hidden bg-background safe-top"
+              style={{
+                paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))'
+              }}
+            >
               <SymbolDetail
                 item={selectedItem}
                 selectedDate={date}
-                onClose={() => setSelectedItem(null)}
+                onClose={closeSymbol}
               />
             </div>
           )}
