@@ -18,8 +18,8 @@ APK_DIR="apk"
 APK_OUTPUT="$WEB_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
 
 # 服务器配置（可通过参数或环境变量覆盖）
-SERVER="${BUILD_SERVER:-root@bitcoooin.cn}"
-SERVER_APK_DIR="${SERVER_APK_DIR:-/root/nextTrade/apk}"
+SERVER="${BUILD_SERVER:-aws}"
+SERVER_APK_DIR="${SERVER_APK_DIR:-~/nextTrade/apk}"
 
 # 版本号（从 shared 包读取）
 VERSION=$(grep "APP_VERSION" packages/shared/src/version.ts | cut -d"'" -f2)

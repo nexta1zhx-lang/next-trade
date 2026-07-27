@@ -19,8 +19,7 @@ const WS_BASE: string =
     : (typeof window !== 'undefined'
         ? process.env.NEXT_PUBLIC_API_URL
         : ''
-      )?.replace(/^http/, 'ws')
-  ) ||
+      )?.replace(/^http/, 'ws')) ||
   (typeof window !== 'undefined' && window.location.hostname === 'localhost'
     ? 'ws://localhost:3001'
     : '')
