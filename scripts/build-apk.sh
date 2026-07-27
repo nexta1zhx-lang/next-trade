@@ -136,6 +136,11 @@ if [ "$SKIP_BUILD" = false ]; then
   cp "$APK_OUTPUT" "$APK_DIR/$APK_FILENAME"
   echo "  → 已复制到: $APK_DIR/$APK_FILENAME"
 
+  # 复制到 public/downloads/ 供本地开发环境访问
+  mkdir -p "$WEB_DIR/public/downloads"
+  cp "$APK_OUTPUT" "$WEB_DIR/public/downloads/$APK_FILENAME"
+  echo "  → 已复制到: $WEB_DIR/public/downloads/$APK_FILENAME"
+
   # 生成版本信息 JSON
   cat > "$APK_DIR/versions.json" << EOF
 {

@@ -12,6 +12,7 @@ noup/
 # APK 构建产物（大文件不提交 git）
 apk/*.apk
 apk/versions.json
+apps/web/public/downloads/*.apk
 
 # Android
 apps/web/android/.gradle/
