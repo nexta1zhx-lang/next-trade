@@ -68,7 +68,7 @@ if [ "$SKIP_BUILD" = false ]; then
     exit 1
   fi
   export ANDROID_HOME
-  export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@21}"
+  export JAVA_HOME="/opt/homebrew/opt/openjdk@21"
 
   echo ""
   echo "  ANDROID_HOME: $ANDROID_HOME"
@@ -163,17 +163,17 @@ if [ "$UPLOAD" = true ] || [ "$MODE" = "development" ]; then
   echo ""
   echo "▶ [5/5] 上传 APK 到服务器..."
 
-  # 确保服务器目录存在
-  ssh "$SERVER" "mkdir -p $SERVER_APK_DIR"
+  # 确保服务器目录存在（自动接受新主机密钥）
+  ssh -o StrictHostKeyChecking=accept-new "$SERVER" "mkdir -p $SERVER_APK_DIR"
 
   if [ "$MODE" = "development" ]; then
     # 开发模式：只上传 APK 文件，不覆盖 versions.json
-    rsync -avz --progress "$APK_DIR/$APK_FILENAME" "$SERVER:$SERVER_APK_DIR/"
+    rsync -avz --progress -e "ssh -o StrictHostKeyChecking=accept-new" "$APK_DIR/$APK_FILENAME" "$SERVER:$SERVER_APK_DIR/"
     DOWNLOAD_URL="https://bitcoooin.cn/downloads/$APK_FILENAME"
     UPLOAD_DESC="开发版已上传"
   else
     # 生产模式：上传整个目录（含 versions.json）
-    rsync -avz --progress "$APK_DIR/" "$SERVER:$SERVER_APK_DIR/"
+    rsync -avz --progress -e "ssh -o StrictHostKeyChecking=accept-new" "$APK_DIR/" "$SERVER:$SERVER_APK_DIR/"
     DOWNLOAD_URL="https://bitcoooin.cn/downloads/$APK_FILENAME"
     UPLOAD_DESC="生产版已上传"
   fi
@@ -183,7 +183,7 @@ if [ "$UPLOAD" = true ] || [ "$MODE" = "development" ]; then
   echo "  ✓ 下载地址: $DOWNLOAD_URL"
 
   # 可选：触发远程部署（使 Caddy 立即生效）
-  # ssh "$SERVER" "cd ~/nextTrade && docker compose -f docker-compose.prod.yml restart caddy"
+  # ssh -o StrictHostKeyChecking=accept-new "$SERVER" "cd ~/nextTrade && docker compose -f docker-compose.prod.yml restart caddy"
 elif [ "$MODE" = "development" ]; then
   # 不会走到这里，上面已处理
   :

@@ -32,19 +32,33 @@ echo " nextTrade 部署开始"
 echo " 时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
 echo "========================================"
 
+# ─── 0. 检查 swap（小服务器构建需要） ───
+SWAP_SIZE=$(free -m 2>/dev/null | awk '/Swap:/{print $2}') || SWAP_SIZE=0
+if [ "$SWAP_SIZE" -lt 1024 ] 2>/dev/null; then
+  echo ""
+  echo "▶ 创建 swap（当前 ${SWAP_SIZE:-0}MB，目标 2GB）..."
+  sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 2>/dev/null
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile > /dev/null 2>&1
+  sudo swapon /swapfile > /dev/null 2>&1
+  echo "  ✓ swap 已启用"
+fi
+
 # ─── 1. 拉取最新代码 ───
 echo ""
 echo "▶ 拉取最新代码..."
 git pull
 
-# ─── 2. 构建并启动 ───
+# ─── 2. 构建并启动（先 build 再 up，避免 --build 同时编译+启动） ───
 echo ""
 if [ -n "$SERVICE" ]; then
   echo "▶ 单独构建 [$SERVICE]..."
-  docker compose -f "$COMPOSE_FILE" up -d --build "$SERVICE"
+  docker compose -f "$COMPOSE_FILE" build "$SERVICE"
+  docker compose -f "$COMPOSE_FILE" up -d "$SERVICE"
 else
   echo "▶ 全量构建所有服务..."
-  docker compose -f "$COMPOSE_FILE" up -d --build
+  docker compose -f "$COMPOSE_FILE" build
+  docker compose -f "$COMPOSE_FILE" up -d
 fi
 
 # ─── 3. 等待就绪 ───
