@@ -1,0 +1,6 @@
+bitcoooin.cn {
+    # 自动 HTTPS（Caddy 自动申请和续期 SSL 证书）
+
+    # 前端所有请求转发到 Next.js
+    reverse_proxy web:3000
+}

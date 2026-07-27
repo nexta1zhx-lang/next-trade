@@ -34,14 +34,14 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     ports:
-      - '3001:3001'
+      - '127.0.0.1:3001:3001'
     environment:
       PORT: '3001'
       DATABASE_URL: postgres://nexttrade:nexttrade@postgres:5432/nexttrade
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      CORS_ORIGIN: https://bitcoooin.cn
       # 显式禁用代理，避免服务器环境变量 HTTPS_PROXY 干扰
       HTTPS_PROXY: ''
       HTTP_PROXY: ''
@@ -59,12 +59,27 @@ services:
       args:
         NEXT_PUBLIC_API_URL: http://api:3001
     ports:
-      - '3000:3000'
+      - '127.0.0.1:3000:3000'
     environment:
       NEXT_PUBLIC_API_URL: http://api:3001
     depends_on:
       - api
     restart: unless-stopped
 
+  caddy:
+    image: caddy:alpine
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
