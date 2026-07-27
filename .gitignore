@@ -9,6 +9,10 @@ dist/
 操作.md
 noup/
 
+# APK 构建产物（大文件不提交 git）
+apk/*.apk
+apk/versions.json
+
 # Android
 apps/web/android/.gradle/
 apps/web/android/build/

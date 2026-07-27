@@ -9,7 +9,8 @@ import {
   Activity,
   Settings2,
   AreaChart,
-  Wallet
+  Wallet,
+  Info
 } from 'lucide-react'
 import type {ReactNode} from 'react'
 
@@ -24,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   {label: '实盘订阅', href: '/analysis', icon: AreaChart},
   {label: '合约实盘', href: '/futures', icon: TrendingUp},
   {label: '资产概况', href: '/asset', icon: Wallet},
+  {label: '关于', href: '/about', icon: Info},
   {label: '系统设置', href: '/settings', icon: Settings2}
 ]
 

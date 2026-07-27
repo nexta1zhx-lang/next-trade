@@ -75,6 +75,7 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      - ./apk:/downloads
     depends_on:
       - web
     restart: unless-stopped

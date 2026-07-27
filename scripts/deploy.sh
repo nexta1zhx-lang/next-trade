@@ -9,6 +9,9 @@ set -euo pipefail
 #   ./scripts/deploy.sh --db-push    # 构建+部署+数据库迁移
 #   ./scripts/deploy.sh api --db-push
 # ─────────────────────────────────────────────────────────
+# 注意: 此脚本在服务器上运行，仅用于 Docker 服务部署。
+#       APK 构建请在本地 macOS 执行: ./scripts/build-apk.sh
+# ─────────────────────────────────────────────────────────
 
 cd "$(dirname "$0")/.."
 
