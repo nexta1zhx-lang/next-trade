@@ -8,3 +8,17 @@ dist/
 .turbo/
 操作.md
 noup/
+
+# Android
+apps/web/android/.gradle/
+apps/web/android/build/
+apps/web/android/app/build/
+apps/web/android/local.properties
+apps/web/android/captures/
+apps/web/android/.externalNativeBuild/
+
+# Capacitor 构建输出
+apps/web/out/
+apps/web/capacitor.config.ts.bak
+apps/web/android/app/src/main/assets/public/
+apps/web/android/app/src/main/assets/capacitor.*

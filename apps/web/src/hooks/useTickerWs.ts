@@ -13,10 +13,14 @@ export interface TickerData {
   low: string
 }
 
-const WS_BASE =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'ws://localhost:3001'
+const WS_BASE: string =
+  (typeof window !== 'undefined'
+    ? process.env.NEXT_PUBLIC_API_URL
     : ''
+  )?.replace(/^http/, 'ws') ||
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'ws://localhost:3001'
+    : '')
 
 /**
  * WebSocket 订阅全量 ticker 数据

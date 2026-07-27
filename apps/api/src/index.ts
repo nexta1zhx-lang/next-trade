@@ -16,6 +16,7 @@ import {v1PositionsRouter} from './routes/v1/positions.js'
 import {userConfigRouter} from './routes/user-config.js'
 import {favoritesRouter} from './routes/favorites.js'
 import {publishRouter} from './routes/publish.js'
+import {tickerRouter} from './routes/ticker.js'
 import {assetRouter} from './routes/asset.js'
 import {assetQueue} from './services/assetQueue.js'
 import {authMiddleware} from './middleware/auth.js'
@@ -48,11 +49,21 @@ app.onError((err, c) => {
 // ─── 健康检查 ───
 app.get('/health', c => c.json({status: 'ok', timestamp: Date.now()}))
 
+// ─── 调试日志接口（手机端错误上报） ───
+app.post('/api/debug/log', async c => {
+  const body = await c.req.json()
+  console.log('[📱 手机端错误]', JSON.stringify(body, null, 2))
+  return c.json({success: true})
+})
+
 // ─── 路由 ───
 app.route('/api/daily-analysis', dailyAnalysisRouter)
 
 // ─── 认证路由（公开，带 IP 限流防暴破） ───
 app.route('/api/auth', authRouter)
+
+// ─── Ticker 行情路由（公开） ───
+app.route('/api/ticker', tickerRouter)
 
 // ─── 币种详情路由（K线 + 标签 + 日记，公开） ───
 app.route('/api/symbols', symbolsRouter)

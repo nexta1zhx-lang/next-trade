@@ -5,18 +5,32 @@ import type {
   StoredApiKey
 } from '@nexttrade/shared'
 
-// 开发时直连 API 端口（绕过 Next.js proxy 超时限制）
-// 生产环境改为同域 /api 或对应域名
-export const API_ORIGIN: string =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:3001'
-    : ''
+/**
+ * API 地址策略（优先级从高到低）：
+ * 1. NEXT_PUBLIC_API_URL 编译时注入（Docker / Capacitor 构建用）
+ * 2. 开发时 localhost 自动探测
+ * 3. 降级到同域 /api（仅 SSR 部署有效）
+ */
+function detectApiOrigin(): string {
+  if (typeof window === 'undefined') return ''
+  // 编译时注入的环境变量
+  const injected = process.env.NEXT_PUBLIC_API_URL
+  if (injected) return injected
+  // 开发环境自动探测
+  if (window.location.hostname === 'localhost') return 'http://localhost:3001'
+  return ''
+}
+
+export const API_ORIGIN: string = detectApiOrigin()
+
+function detectWsBase(): string {
+  const api = detectApiOrigin()
+  if (!api) return ''
+  return api.replace(/^http/, 'ws')
+}
 
 /** WebSocket 连接地址（与 API 同源，仅协议不同） */
-export const WS_BASE: string =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'ws://localhost:3001'
-    : ''
+export const WS_BASE: string = detectWsBase()
 
 const BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : '/api'
 
