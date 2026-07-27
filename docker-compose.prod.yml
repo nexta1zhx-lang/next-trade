@@ -57,10 +57,12 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://api:3001
+        # 构建时注入公网 HTTPS 地址，使客户端 JS 不走 HTTP 混合内容
+        NEXT_PUBLIC_API_URL: https://bitcoooin.cn
     ports:
       - '127.0.0.1:3000:3000'
     environment:
+      # 运行时 Next.js 服务端用内部地址做 rewrites 代理
       NEXT_PUBLIC_API_URL: http://api:3001
     depends_on:
       - api
