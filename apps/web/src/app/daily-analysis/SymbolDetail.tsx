@@ -37,6 +37,7 @@ import type {DailyAnalysisItem} from '@nexttrade/shared'
 import type {CrosshairInfo} from '@/components/chart/KlineChart'
 import {API_ORIGIN, authHeaders, checkResponse, getToken} from '@/lib/api'
 import {generateId} from '@/lib/utils'
+import {useDeviceType} from '@/hooks/useDeviceType'
 
 const TIMEFRAMES = ['15m', '1h', '4h', '1d'] as const
 const PRESET_TAGS = [
@@ -102,11 +103,9 @@ export default function SymbolDetail({
     hitId?: string
   } | null>(null)
   const chartAreaRef = useRef<HTMLDivElement>(null)
-  const [chartHeight, setChartHeight] = useState(() =>
-    typeof window !== 'undefined'
-      ? Math.min(window.innerHeight * 0.45, 400)
-      : 300
-  )
+  const {isMobile} = useDeviceType()
+  // 固定初始值 300 避免 hydration 不匹配，ResizeObserver 会在 mount 后矫正
+  const [chartHeight, setChartHeight] = useState(300)
   const prevHeightRef = useRef(chartHeight)
   const [crosshairInfo, setCrosshairInfo] = useState<CrosshairInfo | null>(null)
   const justSyncedRef = useRef(false)
@@ -117,11 +116,16 @@ export default function SymbolDetail({
 
   // 辅助线保存模式: 'local' | 'cloud'
   const SAVE_MODE_KEY = 'draw_save_mode'
-  const [drawSaveMode, setDrawSaveMode] = useState<'local' | 'cloud'>(() =>
-    typeof window !== 'undefined'
-      ? (localStorage.getItem(SAVE_MODE_KEY) as 'local' | 'cloud') || 'local'
-      : 'local'
-  )
+  const [drawSaveMode, setDrawSaveMode] = useState<'local' | 'cloud'>('local')
+
+  // hydration 完成后从 localStorage 恢复
+  useEffect(() => {
+    const saved = localStorage.getItem(SAVE_MODE_KEY) as
+      | 'local'
+      | 'cloud'
+      | null
+    if (saved) setDrawSaveMode(saved)
+  }, [])
 
   // 切换保存模式
   const toggleSaveMode = useCallback(() => {
@@ -616,7 +620,7 @@ export default function SymbolDetail({
             ref={chartAreaRef}
             className="relative flex-1 min-h-0"
             onContextMenu={e => {
-              if (window.innerWidth < 768) return
+              if (isMobile) return
               handleChartContextMenu(e)
             }}
           >

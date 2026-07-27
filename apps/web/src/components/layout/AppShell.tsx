@@ -2,6 +2,7 @@
 
 import {usePathname, useRouter} from 'next/navigation'
 import {useState, useCallback, useEffect} from 'react'
+import {useDeviceType} from '@/hooks/useDeviceType'
 import {
   BarChart3,
   TrendingUp,
@@ -29,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
 export function AppShell({children}: {children: ReactNode}) {
   const pathname = usePathname()
   const router = useRouter()
+  const {deviceType, isMobile, isTablet, isDesktop, hasTouch} = useDeviceType()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const activeIndex = NAV_ITEMS.findIndex(item =>
@@ -49,7 +51,11 @@ export function AppShell({children}: {children: ReactNode}) {
   }, [pathname])
 
   return (
-    <div className="h-screen bg-background text-foreground flex flex-col md:flex-row overflow-hidden">
+    <div
+      className="h-screen bg-background text-foreground flex flex-col md:flex-row overflow-hidden"
+      data-device={deviceType}
+      data-touch={hasTouch}
+    >
       {/* ─── PC 全宽侧边栏 (lg+) ─── */}
       <aside className="hidden lg:flex lg:flex-col lg:w-56 lg:h-screen lg:sticky lg:top-0 border-r border-border bg-card safe-top">
         {/* Logo */}
@@ -118,8 +124,12 @@ export function AppShell({children}: {children: ReactNode}) {
 
       {/* ─── 主内容区（内部滚动，底部 tab 固定不动） ─── */}
       <main
-        className="flex-1 h-screen overflow-y-auto safe-top"
-        style={{paddingBottom: 'calc(72px + env(safe-area-inset-bottom, 0px))'}}
+        className="flex-1 h-screen overflow-y-auto safe-top p-3 md:p-4"
+        style={
+          isMobile
+            ? {paddingBottom: 'calc(72px + env(safe-area-inset-bottom, 0px))'}
+            : undefined
+        }
       >
         {children}
       </main>
