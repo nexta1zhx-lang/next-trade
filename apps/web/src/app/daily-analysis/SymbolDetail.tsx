@@ -468,13 +468,7 @@ export default function SymbolDetail({
               </span>
             </span>
           </div>
-          {/* 手机上简化为 O/H/L/C */}
-          <div className="flex sm:hidden items-center gap-1 text-[10px] text-gray-500">
-            <span className="text-gray-400">{item.open.toFixed(2)}</span>
-            <span className="text-red-400">{item.high.toFixed(2)}</span>
-            <span className="text-green-400">{item.low.toFixed(2)}</span>
-            <span className="text-gray-300">{item.close.toFixed(2)}</span>
-          </div>
+
           <span
             className={`text-xs font-medium shrink-0 ${item.change >= 0 ? 'text-green-400' : 'text-red-400'}`}
           >
@@ -526,7 +520,7 @@ export default function SymbolDetail({
             </button>
           ))}
           {crosshairInfo && crosshairInfo.high > 0 && (
-            <span className="ml-auto hidden lg:flex items-center gap-2 text-[10px] text-gray-500">
+            <span className="ml-auto flex items-center gap-2 text-[10px] text-gray-500">
               <span>
                 振:
                 <span className="text-gray-300">
@@ -557,11 +551,6 @@ export default function SymbolDetail({
                   %
                 </span>
               </span>
-              <span className="text-gray-600">|</span>
-              <span>O:{crosshairInfo.open.toFixed(4)}</span>
-              <span>H:{crosshairInfo.high.toFixed(4)}</span>
-              <span>L:{crosshairInfo.low.toFixed(4)}</span>
-              <span>C:{crosshairInfo.close.toFixed(4)}</span>
             </span>
           )}
         </div>
@@ -575,7 +564,10 @@ export default function SymbolDetail({
           <div
             ref={chartAreaRef}
             className="relative flex-1 min-h-0"
-            onContextMenu={handleChartContextMenu}
+            onContextMenu={e => {
+              if (window.innerWidth < 768) return
+              handleChartContextMenu(e)
+            }}
           >
             <KlineChart
               key={item.symbol}

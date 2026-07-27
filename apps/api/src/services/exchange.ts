@@ -45,15 +45,20 @@ export async function getBinanceFuture(): Promise<
   if (loadingFuture) return loadingFuture
 
   loadingFuture = (async () => {
-    const ex = new ccxt.binance({
-      enableRateLimit: true,
-      timeout: 30000,
-      options: {defaultType: 'swap'}
-    })
-    await ex.loadMarkets()
-    binanceFuture = ex
-    loadingFuture = null
-    return ex
+    try {
+      const ex = new ccxt.binance({
+        enableRateLimit: true,
+        timeout: 30000,
+        options: {defaultType: 'swap'}
+      })
+      await ex.loadMarkets()
+      binanceFuture = ex
+      loadingFuture = null
+      return ex
+    } catch (err) {
+      loadingFuture = null // 允许下次重试
+      throw err
+    }
   })()
 
   return loadingFuture
