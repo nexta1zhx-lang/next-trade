@@ -39,12 +39,13 @@ for arg in "$@"; do
 done
 
 # 根据模式确定 API 地址和文件名
+APP_NAME_LOWER=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]')
 if [ "$MODE" = "development" ]; then
   API_URL="http://192.168.31.130:3001"
-  APK_FILENAME="${APP_NAME,,}-v${VERSION}-dev.apk"  # nexttrade-v0.1.0-dev.apk
+  APK_FILENAME="${APP_NAME_LOWER}-v${VERSION}-dev.apk"  # nexttrade-v0.1.0-dev.apk
 else
   API_URL="https://bitcoooin.cn"
-  APK_FILENAME="${APP_NAME,,}-v${VERSION}.apk"       # nexttrade-v0.1.0.apk
+  APK_FILENAME="${APP_NAME_LOWER}-v${VERSION}.apk"       # nexttrade-v0.1.0.apk
 fi
 
 echo "============================================"

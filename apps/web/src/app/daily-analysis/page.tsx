@@ -9,7 +9,8 @@ import {
   Star,
   Search,
   RefreshCw,
-  ChevronLeft
+  ChevronLeft,
+  Download
 } from 'lucide-react'
 import type {DailyAnalysisResult, DailyAnalysisItem} from '@nexttrade/shared'
 import type {FavoriteSymbol} from '@nexttrade/shared'
@@ -288,21 +289,29 @@ export default function DailyAnalysisPage() {
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-full flex flex-col overflow-hidden">
       <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4 mb-3 shrink-0">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            <span className="ml-auto flex items-center gap-2 sm:gap-3">
-              {clock && (
-                <span className="text-xs font-mono tabular-nums text-gray-400">
-                  {clock}
-                </span>
-              )}
-              {(loading || refreshing) && (
-                <span className="flex items-center gap-1.5 text-xs text-primary">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  {refreshing ? '刷新中' : '加载中'}
-                </span>
-              )}
-            </span>
+            <span className="text-sm font-semibold text-gray-200">每日行情</span>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {clock && (
+              <span className="text-xs font-mono tabular-nums text-gray-400">
+                {clock}
+              </span>
+            )}
+            {(loading || refreshing) && (
+              <span className="flex items-center gap-1.5 text-xs text-primary">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                {refreshing ? '刷新中' : '加载中'}
+              </span>
+            )}
+            <a
+              href="/about"
+              className="flex items-center justify-center w-7 h-7 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+              title="介绍与下载"
+            >
+              <Download className="w-4 h-4" />
+            </a>
           </div>
         </div>
       </div>

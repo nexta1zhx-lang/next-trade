@@ -9,8 +9,7 @@ import {
   Activity,
   Settings2,
   AreaChart,
-  Wallet,
-  Info
+  Wallet
 } from 'lucide-react'
 import type {ReactNode} from 'react'
 
@@ -25,7 +24,6 @@ const NAV_ITEMS: NavItem[] = [
   {label: '实盘订阅', href: '/analysis', icon: AreaChart},
   {label: '合约实盘', href: '/futures', icon: TrendingUp},
   {label: '资产概况', href: '/asset', icon: Wallet},
-  {label: '关于', href: '/about', icon: Info},
   {label: '系统设置', href: '/settings', icon: Settings2}
 ]
 
@@ -34,6 +32,11 @@ export function AppShell({children}: {children: ReactNode}) {
   const router = useRouter()
   const {deviceType, isMobile, isTablet, isDesktop, hasTouch} = useDeviceType()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // 介绍页全屏展示，不显示导航栏
+  if (pathname === '/about') {
+    return <>{children}</>
+  }
 
   const activeIndex = NAV_ITEMS.findIndex(item =>
     pathname.startsWith(item.href)

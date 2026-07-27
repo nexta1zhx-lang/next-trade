@@ -1,6 +1,5 @@
 'use client'
 
-import {useMemo} from 'react'
 import {
   Activity,
   TrendingUp,
@@ -11,14 +10,10 @@ import {
   Smartphone,
   Download,
   ExternalLink,
-  Github,
   ChevronRight,
   BarChart3,
   LineChart,
   Zap,
-  Lock,
-  RefreshCw,
-  Layers,
   Eye,
   Clock,
   Sparkles
@@ -31,7 +26,6 @@ const IS_DEV =
   typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1')
-// 开发环境显示开发版 APK，生产环境显示生产版 APK
 const APK_URL = IS_DEV
   ? '/downloads/nexttrade-v0.1.0-dev.apk'
   : '/downloads/nexttrade-v0.1.0.apk'
@@ -88,12 +82,7 @@ const FEATURES: Feature[] = [
 ]
 
 // ─── 技术优势 ───
-interface Advantage {
-  label: string
-  value: string
-}
-
-const ADVANTAGES: Advantage[] = [
+const ADVANTAGES = [
   {label: '架构', value: 'Next.js 16 + Hono.js 前后端分离'},
   {label: '数据库', value: 'PostgreSQL 16 + Drizzle ORM'},
   {label: '缓存', value: 'Redis 7（行情缓存 + Pub/Sub 推送）'},
@@ -105,13 +94,7 @@ const ADVANTAGES: Advantage[] = [
 ]
 
 // ─── 更新日志 ───
-interface ChangelogEntry {
-  version: string
-  date: string
-  items: string[]
-}
-
-const CHANGELOG: ChangelogEntry[] = [
+const CHANGELOG = [
   {
     version: '0.1.0',
     date: '2026-07-28',
@@ -124,29 +107,6 @@ const CHANGELOG: ChangelogEntry[] = [
       'Web3 钱包 + 邮箱双认证登录',
       'Android APK 原生 App 发布'
     ]
-  }
-]
-
-// ─── 下载信息 ───
-interface DownloadInfo {
-  platform: string
-  icon: typeof Download
-  label: string
-  url: string
-  size: string
-  version: string
-  date: string
-}
-
-const DOWNLOADS: DownloadInfo[] = [
-  {
-    platform: 'Android',
-    icon: Smartphone,
-    label: APK_LABEL,
-    url: APK_URL,
-    size: '~25 MB',
-    version: IS_DEV ? `v${APP_VERSION}-dev` : `v${APP_VERSION}`,
-    date: '2026-07-28'
   }
 ]
 
@@ -173,59 +133,16 @@ const GRADIENT_MAP: Record<number, string> = {
 function FeatureCard({feature, index}: {feature: Feature; index: number}) {
   const Icon = feature.icon
   return (
-    <div
-      className={`group relative rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5`}
-    >
-      {/* 渐变色背景 */}
-      <div
-        className={`absolute inset-0 rounded-xl bg-linear-to-br ${GRADIENT_MAP[index % 8]} opacity-0 group-hover:opacity-100 transition-opacity`}
-      />
+    <div className="group relative rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
+      <div className={`absolute inset-0 rounded-xl bg-linear-to-br ${GRADIENT_MAP[index % 8]} opacity-0 group-hover:opacity-100 transition-opacity`} />
       <div className="relative z-10">
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-colors">
           <Icon className="w-5 h-5 text-primary" />
         </div>
-        <h3 className="text-sm font-semibold text-foreground mb-1.5">
-          {feature.title}
-        </h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          {feature.desc}
-        </p>
+        <h3 className="text-sm font-semibold text-foreground mb-1.5">{feature.title}</h3>
+        <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
       </div>
     </div>
-  )
-}
-
-function DownloadCard({info}: {info: DownloadInfo}) {
-  const Icon = info.icon
-  return (
-    <a
-      href={info.url}
-      download
-      className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
-    >
-      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors shrink-0">
-        <Icon className="w-6 h-6 text-primary" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-semibold text-foreground">
-            {info.label}
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-            {info.version}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-          <span>{info.size}</span>
-          <span>·</span>
-          <span>更新于 {info.date}</span>
-          <span>·</span>
-          <span className="flex items-center gap-0.5 text-primary group-hover:underline">
-            下载 <ExternalLink className="w-3 h-3" />
-          </span>
-        </div>
-      </div>
-    </a>
   )
 }
 
@@ -238,28 +155,15 @@ function ChangelogSection() {
       </h2>
       <div className="space-y-4">
         {CHANGELOG.map(entry => (
-          <div
-            key={entry.version}
-            className="relative pl-6 border-l-2 border-border"
-          >
-            {/* 时间轴圆点 */}
-            {/* 使用 left-0 + translate 代替 -left-[9px] 以满足 Tailwind v4 */}
+          <div key={entry.version} className="relative pl-6 border-l-2 border-border">
             <div className="absolute left-0 top-0 -translate-x-1/2 w-4 h-4 rounded-full bg-card border-2 border-primary" />
-
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-sm font-bold text-foreground">
-                v{entry.version}
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                {entry.date}
-              </span>
+              <span className="text-sm font-bold text-foreground">v{entry.version}</span>
+              <span className="text-[11px] text-muted-foreground">{entry.date}</span>
             </div>
             <ul className="space-y-1">
               {entry.items.map((item, i) => (
-                <li
-                  key={i}
-                  className="text-xs text-muted-foreground flex items-start gap-2"
-                >
+                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
                   <ChevronRight className="w-3 h-3 mt-0.5 shrink-0 text-primary/60" />
                   {item}
                 </li>
@@ -272,154 +176,182 @@ function ChangelogSection() {
   )
 }
 
-export default function AboutPage() {
+export default function IntroPage() {
   return (
-    <div className="max-w-4xl mx-auto space-y-10 pb-10">
-      {/* ─── Hero ─── */}
-      <section className="text-center pt-8 md:pt-16 pb-4">
-        {/* Logo + 名称 */}
-        <div className="inline-flex items-center gap-3 mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Activity className="w-7 h-7 text-white" />
-          </div>
-          <div className="text-left">
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">
-              nextTrade
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              AI 辅助的 Web3 + CEX 量化交易平台
-            </p>
-          </div>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* ─── 顶部导航条 ─── */}
+      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md safe-top">
+        <div className="max-w-5xl mx-auto flex items-center justify-between h-14 px-4">
+          <a href="/介绍" className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+              <Activity className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-bold text-sm tracking-tight">nextTrade</span>
+          </a>
+          <nav className="flex items-center gap-1">
+            <a href="/daily-analysis" className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              在线体验
+            </a>
+            <a
+              href={APK_URL}
+              download
+              className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              下载 APK
+            </a>
+          </nav>
         </div>
+      </header>
 
-        {/* 标语 */}
-        <p className="text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed mb-8">
-          实时聚合多家主流交易所行情数据，提供专业级行情分析、合约持仓监控、
-          资产全景管理，让交易决策更加高效
-        </p>
+      {/* ─── 主内容 ─── */}
+      <div className="max-w-4xl mx-auto px-4 space-y-10 pb-10">
+        {/* ─── Hero ─── */}
+        <section className="text-center pt-12 md:pt-20 pb-4">
+          <div className="inline-flex items-center gap-3 mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Activity className="w-8 h-8 text-white" />
+            </div>
+            <div className="text-left">
+              <h1 className="text-3xl font-bold text-foreground tracking-tight">nextTrade</h1>
+              <p className="text-sm text-muted-foreground">AI 辅助的 Web3 + CEX 量化交易平台</p>
+            </div>
+          </div>
 
-        {/* CTA 按钮 */}
-        <div className="flex items-center justify-center gap-3 flex-wrap">
+          <p className="text-sm text-muted-foreground max-w-xl mx-auto leading-relaxed mb-8">
+            实时聚合多家主流交易所行情数据，提供专业级行情分析、合约持仓监控、
+            资产全景管理，让交易决策更加高效
+          </p>
+
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <a
+              href={APK_URL}
+              download
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              {APK_LABEL}
+            </a>
+            <a
+              href="/daily-analysis"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border border-border bg-card text-foreground text-sm font-medium hover:bg-muted/50 transition-colors"
+            >
+              <Eye className="w-4 h-4" />
+              在线体验
+            </a>
+          </div>
+        </section>
+
+        {/* ─── 统计数据 ─── */}
+        <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {STATS.map(stat => (
+            <div key={stat.label} className="rounded-xl border border-border bg-card p-4 text-center">
+              <div className="text-xl font-bold text-primary mb-1">{stat.value}</div>
+              <div className="text-[11px] text-muted-foreground">{stat.label}</div>
+            </div>
+          ))}
+        </section>
+
+        {/* ─── 功能介绍 ─── */}
+        <section>
+          <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            功能特性
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {FEATURES.map((feature, i) => (
+              <FeatureCard key={feature.title} feature={feature} index={i} />
+            ))}
+          </div>
+        </section>
+
+        {/* ─── 技术栈 ─── */}
+        <section>
+          <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-primary" />
+            技术架构
+          </h2>
+          <div className="rounded-xl border border-border bg-card p-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {ADVANTAGES.map(adv => (
+                <div key={adv.label}>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{adv.label}</div>
+                  <div className="text-xs text-foreground font-medium">{adv.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ─── 下载区域 ─── */}
+        <section>
+          <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+            <Download className="w-4 h-4 text-primary" />
+            下载与安装
+          </h2>
+
           <a
             href={APK_URL}
             download
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
           >
-            <Download className="w-4 h-4" />
-            {APK_LABEL}
-          </a>
-          <a
-            href="/daily-analysis"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-border bg-card text-foreground text-sm font-medium hover:bg-muted/50 transition-colors"
-          >
-            <Eye className="w-4 h-4" />
-            在线体验
-          </a>
-        </div>
-      </section>
-
-      {/* ─── 统计数据 ─── */}
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {STATS.map(stat => (
-          <div
-            key={stat.label}
-            className="rounded-xl border border-border bg-card p-4 text-center"
-          >
-            <div className="text-xl font-bold text-primary mb-1">
-              {stat.value}
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors shrink-0">
+              <Smartphone className="w-6 h-6 text-primary" />
             </div>
-            <div className="text-[11px] text-muted-foreground">
-              {stat.label}
-            </div>
-          </div>
-        ))}
-      </section>
-
-      {/* ─── 功能介绍 ─── */}
-      <section>
-        <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-primary" />
-          功能特性
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {FEATURES.map((feature, i) => (
-            <FeatureCard key={feature.title} feature={feature} index={i} />
-          ))}
-        </div>
-      </section>
-
-      {/* ─── 技术栈 ─── */}
-      <section>
-        <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-          <Cpu className="w-4 h-4 text-primary" />
-          技术架构
-        </h2>
-        <div className="rounded-xl border border-border bg-card p-5">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {ADVANTAGES.map(adv => (
-              <div key={adv.label}>
-                <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
-                  {adv.label}
-                </div>
-                <div className="text-xs text-foreground font-medium">
-                  {adv.value}
-                </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-semibold text-foreground">{APK_LABEL}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {IS_DEV ? `v${APP_VERSION}-dev` : `v${APP_VERSION}`}
+                </span>
               </div>
-            ))}
+              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                <span>~25 MB</span>
+                <span>·</span>
+                <span>更新于 2026-07-28</span>
+                <span>·</span>
+                <span className="flex items-center gap-0.5 text-primary group-hover:underline">
+                  下载 <ExternalLink className="w-3 h-3" />
+                </span>
+              </div>
+            </div>
+          </a>
+
+          <div className="mt-4 rounded-xl border border-border bg-card p-4">
+            <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-primary" />
+              安装说明
+            </h3>
+            <ol className="space-y-1.5 text-[11px] text-muted-foreground list-decimal list-inside">
+              <li>下载 APK 文件到手机</li>
+              <li>在文件管理器中点击 APK 文件安装</li>
+              <li>如提示"未知来源应用"，前往设置 → 安全 → 允许安装未知来源应用</li>
+              <li>安装完成后打开 App，登录即可使用</li>
+            </ol>
+            <div className="mt-3 pt-3 border-t border-border text-[11px] text-muted-foreground">
+              <p>
+                当前环境:{' '}
+                <code className="text-[10px] bg-muted px-1 rounded">
+                  {typeof window !== 'undefined' ? window.location.hostname : ''}
+                </code>{' '}
+                — {IS_DEV ? '开发版，连接本地 API' : '生产版，连接正式服务器'}
+              </p>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ─── 下载区域 ─── */}
-      <section>
-        <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-          <Download className="w-4 h-4 text-primary" />
-          下载与安装
-        </h2>
-        <div className="space-y-3">
-          {DOWNLOADS.map(info => (
-            <DownloadCard key={info.platform} info={info} />
-          ))}
-        </div>
+        {/* ─── 更新日志 ─── */}
+        <section>
+          <ChangelogSection />
+        </section>
 
-        {/* 安装说明 */}
-        <div className="mt-4 rounded-xl border border-border bg-card p-4">
-          <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5 text-primary" />
-            安装说明
-          </h3>
-          <ol className="space-y-1.5 text-[11px] text-muted-foreground list-decimal list-inside">
-            <li>下载 APK 文件到手机</li>
-            <li>在文件管理器中点击 APK 文件安装</li>
-            <li>
-              如提示"未知来源应用"，前往设置 → 安全 → 允许安装未知来源应用
-            </li>
-            <li>安装完成后打开 App，登录即可使用</li>
-          </ol>
-          <div className="mt-3 pt-3 border-t border-border text-[11px] text-muted-foreground">
-            <p>
-              当前环境:{' '}
-              <code className="text-[10px] bg-muted px-1 rounded">
-                {typeof window !== 'undefined' ? window.location.hostname : ''}
-              </code>{' '}
-              — {IS_DEV ? '开发版，连接本地 API' : '生产版，连接正式服务器'}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── 更新日志 ─── */}
-      <section>
-        <ChangelogSection />
-      </section>
-
-      {/* ─── Footer ─── */}
-      <footer className="text-center pt-4 pb-8 border-t border-border">
-        <p className="text-[10px] text-muted-foreground">
-          nextTrade v{APP_VERSION} (Build {APP_BUILD}) &middot;{' '}
-          {new Date().getFullYear()} &middot; 仅供个人交易参考，不构成投资建议
-        </p>
-      </footer>
+        {/* ─── Footer ─── */}
+        <footer className="text-center pt-4 pb-8 border-t border-border">
+          <p className="text-[10px] text-muted-foreground">
+            nextTrade v{APP_VERSION} (Build {APP_BUILD}) &middot;{' '}
+            {new Date().getFullYear()} &middot; 仅供个人交易参考，不构成投资建议
+          </p>
+        </footer>
+      </div>
     </div>
   )
 }
