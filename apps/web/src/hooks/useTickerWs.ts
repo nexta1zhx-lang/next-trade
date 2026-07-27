@@ -14,10 +14,13 @@ export interface TickerData {
 }
 
 const WS_BASE: string =
-  (typeof window !== 'undefined'
-    ? process.env.NEXT_PUBLIC_API_URL
-    : ''
-  )?.replace(/^http/, 'ws') ||
+  (typeof window !== 'undefined' && window.location.protocol === 'https:'
+    ? '' // HTTPS 页面降级到同域相对路径，由 Caddy 代理
+    : (typeof window !== 'undefined'
+        ? process.env.NEXT_PUBLIC_API_URL
+        : ''
+      )?.replace(/^http/, 'ws')
+  ) ||
   (typeof window !== 'undefined' && window.location.hostname === 'localhost'
     ? 'ws://localhost:3001'
     : '')

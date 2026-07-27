@@ -7,12 +7,17 @@ import type {
 
 /**
  * API 地址策略（优先级从高到低）：
- * 1. NEXT_PUBLIC_API_URL 编译时注入（Docker / Capacitor 构建用）
- * 2. 开发时 localhost 自动探测
- * 3. 降级到同域 /api（仅 SSR 部署有效）
+ * 1. 同域相对路径（HTTPS 页面自动降级到此，防止 Mixed Content）
+ * 2. NEXT_PUBLIC_API_URL 编译时注入（Docker / Capacitor 构建用）
+ * 3. 开发时 localhost 自动探测
+ *
+ * 注意：HTTPS 页面中使用 HTTP 内部地址会被浏览器拦截为 Mixed Content。
+ * 此时降级到同域相对路径 /api，由 Caddy/Next.js 代理到后端。
  */
 function detectApiOrigin(): string {
   if (typeof window === 'undefined') return ''
+  // HTTPS 页面强制降级到同域相对路径
+  if (window.location.protocol === 'https:') return ''
   // 编译时注入的环境变量
   const injected = process.env.NEXT_PUBLIC_API_URL
   if (injected) return injected
