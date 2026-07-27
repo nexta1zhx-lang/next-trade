@@ -16,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 COMPOSE_FILE="docker-compose.prod.yml"
-SERVICE="${1:-}"          # 可选: api / web
+SERVICE=""                # 可选: api / web
 DB_PUSH=false
 
 # 解析参数
