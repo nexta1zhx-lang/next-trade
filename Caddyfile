@@ -7,13 +7,13 @@ bitcoooin.cn {
         file_server browse
     }
 
-    # API 请求直连后端（避免 Next.js 代理增加跳转，且 Next.js rewrites 不支持 WebSocket）
-    handle_path /api/* {
+    # API 请求直连后端（使用 handle 而非 handle_path，避免剥离 /api 前缀）
+    handle /api/* {
         reverse_proxy api:3001
     }
 
     # WebSocket 请求直连后端
-    handle_path /ws/* {
+    handle /ws/* {
         reverse_proxy api:3001
     }
 
