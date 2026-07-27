@@ -257,7 +257,7 @@ export interface DrawingLine {
 }
 
 export interface SymbolReviewSave {
-  date: string
+  date?: string
   title?: string
   content: string
   tags?: Array<{tag: string; color: string}>
@@ -268,14 +268,14 @@ export interface FavoriteSymbol {
   id: number
   symbol: string
   base: string
-  date: string // 加入时的每日行情日期 YYYY-MM-DD
   createdAt: string
+  /** 近 10 天进入振幅榜前 10 的次数 */
+  top10Count?: number
 }
 
 export interface FavoriteSymbolCreate {
   symbol: string
   base: string
-  date: string
 }
 
 // ─── 资产快照（精简版） ───

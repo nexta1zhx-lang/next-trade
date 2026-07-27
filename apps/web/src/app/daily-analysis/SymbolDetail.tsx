@@ -16,7 +16,8 @@ import {
   RotateCcw,
   ArrowRightToLine,
   Minus,
-  Eraser
+  Eraser,
+  Maximize2
 } from 'lucide-react'
 import type {IChartApi, ISeriesApi, Time} from 'lightweight-charts'
 import type {SymbolReview} from '@nexttrade/shared'
@@ -39,7 +40,7 @@ import {API_ORIGIN, authHeaders, checkResponse, getToken} from '@/lib/api'
 import {generateId} from '@/lib/utils'
 import {useDeviceType} from '@/hooks/useDeviceType'
 
-const TIMEFRAMES = ['15m', '1h', '4h', '1d'] as const
+const TIMEFRAMES = ['5m', '15m', '1h', '4h', '1d', '3d'] as const
 const PRESET_TAGS = [
   {tag: '突破', color: '#22c55e'},
   {tag: '回调', color: '#f59e0b'},
@@ -62,16 +63,35 @@ function fmtDate(dateStr: string) {
   })
 }
 
+function fmtVol(n: number): string {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
+  return n.toFixed(0)
+}
+
 interface SymbolDetailProps {
   item: DailyAnalysisItem
   selectedDate: string
   onClose: () => void
+  /** PC/平板端放大/缩小切换 */
+  expanded?: boolean
+  onExpandToggle?: () => void
+  /** 实时 ticker 数据（WebSocket） */
+  ticker?: {
+    price: string
+    change: string
+    quoteVol: string
+  }
 }
 
 export default function SymbolDetail({
   item,
   selectedDate,
-  onClose
+  onClose,
+  expanded,
+  onExpandToggle,
+  ticker
 }: SymbolDetailProps) {
   const [timeframe, setTimeframe] = useState<string>('1h')
   const [activeTool, setActiveTool] = useState<
@@ -103,6 +123,8 @@ export default function SymbolDetail({
     hitId?: string
   } | null>(null)
   const chartAreaRef = useRef<HTMLDivElement>(null)
+  const [editMode, setEditMode] = useState(false)
+  const [deleteMode, setDeleteMode] = useState(false)
   const {isMobile} = useDeviceType()
   // 固定初始值 300 避免 hydration 不匹配，ResizeObserver 会在 mount 后矫正
   const [chartHeight, setChartHeight] = useState(300)
@@ -110,7 +132,6 @@ export default function SymbolDetail({
   const [crosshairInfo, setCrosshairInfo] = useState<CrosshairInfo | null>(null)
   const justSyncedRef = useRef(false)
   const loadedRef = useRef(false)
-  const reviewFetchedRef = useRef<string | null>(null)
   const drawFetchedRef = useRef<string | null>(null)
   const [loggedIn, setLoggedIn] = useState(() => !!getToken())
 
@@ -140,7 +161,6 @@ export default function SymbolDetail({
       if (local) {
         try {
           const data = JSON.parse(local)
-          justSyncedRef.current = true
           fetch(
             `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/drawings`,
             {
@@ -195,26 +215,29 @@ export default function SymbolDetail({
     if (drawFetchedRef.current === item.symbol) return
     drawFetchedRef.current = item.symbol
     loadedRef.current = false
-    if (drawSaveMode === 'cloud' && getToken()) {
-      if (justSyncedRef.current) {
-        justSyncedRef.current = false
-        loadedRef.current = true
-        return
-      }
+
+    // 1. 总是先从 localStorage 加载（本地缓存）
+    const cached = localStorage.getItem(DRAWINGS_KEY)
+    if (cached) {
+      try {
+        setDrawings(JSON.parse(cached))
+      } catch {}
+    }
+
+    // 2. 如果登录了，再从云端拉取最新数据覆盖
+    if (getToken()) {
       const ctrl = new AbortController()
       fetch(
         `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/drawings`,
-        {
-          headers: authHeaders(),
-          signal: ctrl.signal
-        }
+        {headers: authHeaders(), signal: ctrl.signal}
       )
         .then(checkResponse)
         .then(r => r.json())
         .then(d => {
-          if (!ctrl.signal.aborted) {
-            if (d.success && Array.isArray(d.data)) setDrawings(d.data)
-            else setDrawings([])
+          if (!ctrl.signal.aborted && d.success && Array.isArray(d.data)) {
+            setDrawings(d.data)
+            // 同时更新本地缓存
+            localStorage.setItem(DRAWINGS_KEY, JSON.stringify(d.data))
           }
         })
         .catch(() => {})
@@ -225,26 +248,21 @@ export default function SymbolDetail({
         ctrl.abort()
         drawFetchedRef.current = null
       }
-    } else {
-      const saved = localStorage.getItem(DRAWINGS_KEY)
-      if (saved) {
-        try {
-          setDrawings(JSON.parse(saved))
-        } catch {}
-      } else {
-        setDrawings([])
-      }
-      loadedRef.current = true
     }
-  }, [DRAWINGS_KEY, drawSaveMode, item.symbol])
 
-  // 保存辅助线（仅当 drawings 数据实际变化时触发）
+    loadedRef.current = true
+  }, [DRAWINGS_KEY, item.symbol])
+
+  // 保存辅助线：同时写入 localStorage + 云端
   const saveKeyRef = useRef(DRAWINGS_KEY)
   saveKeyRef.current = DRAWINGS_KEY
   useEffect(() => {
-    if (drawings === null || drawings.length === 0) return
+    if (drawings === null) return
     const key = saveKeyRef.current
-    if (drawSaveMode === 'cloud' && getToken()) {
+    // 始终保存到 localStorage
+    localStorage.setItem(key, JSON.stringify(drawings))
+    // 登录时同步到云端
+    if (getToken()) {
       fetch(
         `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/drawings`,
         {
@@ -253,15 +271,14 @@ export default function SymbolDetail({
           body: JSON.stringify({data: drawings})
         }
       ).catch(() => {})
-    } else {
-      localStorage.setItem(key, JSON.stringify(drawings))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drawings])
 
   useEffect(() => {
-    if (!item.symbol || reviewFetchedRef.current === item.symbol) return
-    reviewFetchedRef.current = item.symbol
+    if (!item.symbol) return
+    // 切换币种时先清空旧数据，避免闪现旧想法
+    setReviews([])
     const ctrl = new AbortController()
     fetch(
       `${API_ORIGIN}/api/symbols/${encodeURIComponent(item.symbol)}/reviews`,
@@ -276,10 +293,7 @@ export default function SymbolDetail({
         if (!ctrl.signal.aborted && d.success) setReviews(d.data)
       })
       .catch(() => {})
-    return () => {
-      ctrl.abort()
-      reviewFetchedRef.current = null
-    }
+    return () => ctrl.abort()
   }, [item.symbol])
 
   useEffect(() => {
@@ -410,7 +424,6 @@ export default function SymbolDetail({
           method: 'POST',
           headers: {'Content-Type': 'application/json', ...authHeaders()},
           body: JSON.stringify({
-            date: selectedDate,
             title: reviewTitle.trim(),
             content: reviewContent.trim(),
             tags: reviewTags
@@ -420,15 +433,7 @@ export default function SymbolDetail({
       checkResponse(res)
       const data = await res.json()
       if (data.success) {
-        setReviews(prev => {
-          const idx = prev.findIndex(r => r.date === data.data.date)
-          if (idx >= 0) {
-            const n = [...prev]
-            n[idx] = data.data
-            return n
-          }
-          return [data.data, ...prev]
-        })
+        setReviews(prev => [data.data, ...prev])
         setReviewTitle('')
         setReviewContent('')
         setReviewTags([])
@@ -436,7 +441,7 @@ export default function SymbolDetail({
     } finally {
       setSaving(false)
     }
-  }, [item.symbol, selectedDate, reviewTitle, reviewContent, reviewTags])
+  }, [item.symbol, reviewTitle, reviewContent, reviewTags])
 
   const handleDeleteReview = useCallback(
     async (id: number) => {
@@ -481,6 +486,31 @@ export default function SymbolDetail({
     }
   }, [onClose])
 
+  // 展开/缩小时重新调整图表尺寸并自适应
+  useEffect(() => {
+    if (!chart) return
+    const timer = setTimeout(() => {
+      const parent = chart.chartElement()?.parentElement
+      if (parent) {
+        chart.applyOptions({width: parent.clientWidth})
+      }
+      if (candleSeries) {
+        const data = candleSeries.data()
+        if (data.length > 0) {
+          const w = parent?.clientWidth ?? 800
+          const visibleCount = Math.max(20, Math.floor(w / 8))
+          const last = data[data.length - 1].time as number
+          const first = data[Math.max(0, data.length - visibleCount)]
+            .time as number
+          chart
+            .timeScale()
+            .setVisibleRange({from: first as any, to: last as any})
+        }
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [expanded, chart, candleSeries])
+
   return (
     <div
       ref={containerRef2}
@@ -503,33 +533,72 @@ export default function SymbolDetail({
               /USDT
             </span>
           </h3>
-          <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
+          {/* 今日实时行情 */}
+          <div className="hidden sm:flex items-center gap-2 text-xs">
+            {ticker ? (
+              <>
+                <span className="text-gray-200 font-mono tabular-nums">
+                  ${parseFloat(ticker.price).toFixed(4)}
+                </span>
+                <span
+                  className={`font-medium ${Number(ticker.change) >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                >
+                  {Number(ticker.change) >= 0 ? '+' : ''}
+                  {Number(ticker.change).toFixed(2)}%
+                </span>
+                <span className="text-gray-500">
+                  量{' '}
+                  <span className="text-gray-300">
+                    {fmtVol(Number(ticker.quoteVol))}
+                  </span>
+                </span>
+              </>
+            ) : (
+              <>
+                <span
+                  className={`font-medium shrink-0 ${item.change >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                >
+                  {item.change >= 0 ? '+' : ''}
+                  {item.change.toFixed(2)}%
+                </span>
+                {item.quoteVolume > 0 && (
+                  <span className="text-gray-500">
+                    量{' '}
+                    <span className="text-gray-300">
+                      {fmtVol(item.quoteVolume)}
+                    </span>
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+          {/* 昨日 OHLC（隐藏） */}
+          <div className="hidden xs:flex items-center gap-2 text-[10px] text-gray-600">
             <span>
               O:
-              <span className="text-gray-300 ml-1">{item.open.toFixed(4)}</span>
+              <span className="text-gray-400 ml-0.5">
+                {item.open.toFixed(4)}
+              </span>
             </span>
             <span>
               H:
-              <span className="text-gray-300 ml-1">{item.high.toFixed(4)}</span>
+              <span className="text-gray-400 ml-0.5">
+                {item.high.toFixed(4)}
+              </span>
             </span>
             <span>
               L:
-              <span className="text-gray-300 ml-1">{item.low.toFixed(4)}</span>
+              <span className="text-gray-400 ml-0.5">
+                {item.low.toFixed(4)}
+              </span>
             </span>
             <span>
               C:
-              <span className="text-gray-300 ml-1">
+              <span className="text-gray-400 ml-0.5">
                 {item.close.toFixed(4)}
               </span>
             </span>
           </div>
-
-          <span
-            className={`text-xs font-medium shrink-0 ${item.change >= 0 ? 'text-green-400' : 'text-red-400'}`}
-          >
-            {item.change >= 0 ? '+' : ''}
-            {item.change.toFixed(2)}%
-          </span>
         </div>
         <div className="flex items-center gap-1 md:gap-2 shrink-0">
           {/* 保存模式 */}
@@ -553,11 +622,35 @@ export default function SymbolDetail({
           >
             {drawSaveMode === 'cloud' ? '云' : '本地'}
           </button>
+          {/* PC/平板放大按钮 — 移动端隐藏 */}
+          {/* 放大/全屏按钮 */}
           <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-300 p-1 -mr-1"
+            onClick={() => {
+              if (onExpandToggle) {
+                // PC/平板：展开右侧面板
+                onExpandToggle()
+              } else {
+                // 移动端：全屏
+                const el = containerRef2.current
+                if (el && !document.fullscreenElement) {
+                  el.requestFullscreen?.()
+                } else {
+                  document.exitFullscreen?.()
+                }
+              }
+            }}
+            className="flex text-gray-500 hover:text-gray-300 p-1 -mr-1"
+            title={
+              document.fullscreenElement
+                ? '退出全屏'
+                : expanded
+                  ? '缩小'
+                  : '放大'
+            }
           >
-            <X className="w-5 h-5" />
+            <Maximize2
+              className={`w-4 h-4 transition-transform ${expanded || document.fullscreenElement ? 'rotate-45' : ''}`}
+            />
           </button>
         </div>
       </div>
@@ -615,10 +708,14 @@ export default function SymbolDetail({
             onSelectTool={setActiveTool}
             onClearAll={handleClearAll}
             hasDrawings={Array.isArray(drawings) && drawings.length > 0}
+            editMode={editMode}
+            onEditModeChange={setEditMode}
+            deleteMode={deleteMode}
+            onDeleteModeChange={setDeleteMode}
           />
           <div
             ref={chartAreaRef}
-            className="relative flex-1 min-h-0"
+            className="relative flex-1 min-h-0 overflow-hidden"
             onContextMenu={e => {
               if (isMobile) return
               handleChartContextMenu(e)
@@ -643,6 +740,8 @@ export default function SymbolDetail({
               onUpdateDrawing={handleUpdateDrawing}
               onClearAll={handleClearAll}
               onToolChange={setActiveTool}
+              editMode={editMode}
+              deleteMode={deleteMode}
             />
           </div>
         </div>
@@ -745,7 +844,7 @@ export default function SymbolDetail({
         )}
         <div className="flex items-center justify-between shrink-0">
           <h4 className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5" /> 想法 — {selectedDate}
+            <FileText className="w-3.5 h-3.5" /> 想法
           </h4>
           {/* 手机端 Tab 切换按钮 */}
           <div className="flex gap-1 md:hidden">
@@ -927,7 +1026,14 @@ export default function SymbolDetail({
                       {r.title || r.content.slice(0, 30)}
                     </span>
                     <span className="text-[9px] text-gray-600 shrink-0">
-                      {fmtDate(r.date)}
+                      {new Date(r.createdAt).toLocaleDateString('zh-CN', {
+                        month: 'short',
+                        day: 'numeric'
+                      })}{' '}
+                      {new Date(r.createdAt).toLocaleTimeString('zh-CN', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                     </span>
                     {r.tags && r.tags.length > 0 && (
                       <span className="flex gap-0.5 shrink-0">

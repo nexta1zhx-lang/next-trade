@@ -3,20 +3,14 @@
  *
  * 使用 ws 库直连 Binance USDⓈ-M 期货公共 WebSocket (!miniTicker@arr)，
  * 仅接收 USDT 永续合约的 ticker，不会混入现货数据。
- * 收到 ticker 后格式化并通过 subscribers 推送给前端 SSE。
- *
- * 数据流:
- *   Binance Futures WS (!miniTicker@arr)
- *     → ws 直连 → 解析 JSON → 格式化 ticker
- *     → subscribers (SSE 端点)
- *     → 前端 EventSource
+ * 收到 ticker 后格式化并通过 subscribers 推送给前端 WebSocket。
  *
  * URL: wss://fstream.binance.com/market/ws/!miniTicker@arr
  * 数据格式(单流): [{e:"24hrMiniTicker",E:...,s:"BTCUSDT",c:"...",o:"...",...}, ...]
  */
 
 import WebSocket from 'ws'
-import {getBinanceFuture} from './exchange.js'
+import {fetchAllTickers} from './binance.js'
 
 // ─── 类型 ───
 
@@ -87,25 +81,25 @@ function broadcast(tickers: TickerData[]) {
 
 // ─── REST 初始拉取（快照） ───
 
-async function fetchAllTickers() {
+async function fetchAllBinanceTickers() {
   try {
-    const exchange = await getBinanceFuture()
-    const tickers = await exchange.fetchTickers()
+    const tickers = await fetchAllTickers()
     const result: TickerData[] = []
 
-    for (const [symbol, t] of Object.entries(tickers)) {
-      if (!t.last || !t.open) continue
-      if (!symbol.endsWith('/USDT:USDT')) continue
-      const change = t.open > 0 ? ((t.last - t.open) / t.open) * 100 : 0
+    for (const t of tickers) {
+      const price = parseFloat(t.price)
+      const open = price / (1 + parseFloat(t.changePct) / 100)
+      if (!price || !open) continue
+      const change = open > 0 ? ((price - open) / open) * 100 : 0
       result.push({
-        symbol: symbol.replace('/USDT:USDT', 'USDT'),
-        price: t.last.toFixed(8),
-        open: t.open.toFixed(8),
+        symbol: t.symbol,
+        price: t.price,
+        open: open.toFixed(8),
         change: change.toFixed(2),
-        volume: (t.baseVolume ?? 0).toFixed(2),
-        quoteVol: (t.quoteVolume ?? 0).toFixed(2),
-        high: (t.high ?? 0).toFixed(8),
-        low: (t.low ?? 0).toFixed(8)
+        volume: t.volume,
+        quoteVol: t.quoteVol,
+        high: t.high,
+        low: t.low
       })
     }
 
@@ -192,7 +186,7 @@ export function startBinanceTicker() {
   if (ws?.readyState === WebSocket.OPEN) return // 已连接
 
   // 先 REST 拉取全量快照
-  fetchAllTickers()
+  fetchAllBinanceTickers()
 
   createConnection()
 }

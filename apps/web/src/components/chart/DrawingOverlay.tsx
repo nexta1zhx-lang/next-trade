@@ -27,6 +27,10 @@ interface DrawingOverlayProps {
   onToolChange?: (
     tool: 'cursor' | 'horizontal' | 'trendline' | 'vertical' | 'ruler'
   ) => void
+  /** 编辑模式：可拖拽/删除辅助线，关闭时图表正常滚动 */
+  editMode?: boolean
+  /** 删除模式（仅在编辑模式下生效）：点击辅助线直接删除 */
+  deleteMode?: boolean
 }
 
 type DragTarget =
@@ -91,8 +95,12 @@ export default function DrawingOverlay({
   activeTool,
   drawings,
   onAddDrawing,
+  onDeleteDrawing,
   onUpdateDrawing,
-  onToolChange
+  onClearAll,
+  onToolChange,
+  editMode = false,
+  deleteMode = false
 }: DrawingOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const p1Ref = useRef<{time: number; price: number} | null>(null)
@@ -128,6 +136,11 @@ export default function DrawingOverlay({
         const y = candleSeries.priceToCoordinate(d.price1)
         if (y === null) continue
         const py = y * dpr
+        // 用 clip 限制在图表区域，不延伸到价格轴
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, 0, c.width, c.height)
+        ctx.clip()
         ctx.beginPath()
         ctx.moveTo(0, py)
         ctx.lineTo(c.width, py)
@@ -139,6 +152,7 @@ export default function DrawingOverlay({
         ctx.fillStyle = isH ? '#60a5fa' : '#3b82f6'
         ctx.font = `${11 * dpr}px monospace`
         ctx.fillText(d.price1.toFixed(4), 4 * dpr, py - 4 * dpr)
+        ctx.restore()
       } else if (d.type === 'vertical') {
         const x = ts.timeToCoordinate(d.time1 as Time)
         if (x === null) continue
@@ -263,10 +277,12 @@ export default function DrawingOverlay({
     const raf = {current: 0}
     const fn = () => {
       const r = p.getBoundingClientRect()
-      c.width = r.width * dpr
-      c.height = r.height * dpr
-      c.style.width = r.width + 'px'
-      c.style.height = r.height + 'px'
+      const w = Math.floor(r.width)
+      const h = Math.floor(r.height)
+      c.width = w * dpr
+      c.height = h * dpr
+      c.style.width = w + 'px'
+      c.style.height = h + 'px'
       raf.current = requestAnimationFrame(() => draw())
     }
     const o = new ResizeObserver(fn)
@@ -450,7 +466,7 @@ export default function DrawingOverlay({
         }
       }
       setHovered(found)
-      setHoverPos(found ? {x: e.clientX, y: e.clientY - 40} : null)
+      setHoverPos(found ? {x: e.clientX, y: e.clientY - 32} : null)
       if (
         p1Ref.current &&
         (activeTool === 'trendline' || activeTool === 'ruler')
@@ -541,7 +557,169 @@ export default function DrawingOverlay({
     }
   }, [activeTool])
 
-  const interactive = activeTool !== 'cursor'
+  // ─── 触控事件 ───
+  // 将 touch 坐标转为 {mx, my}（相对 canvas）
+  const touchRel = useCallback((t: Touch) => {
+    if (!canvasRef.current) return {mx: 0, my: 0}
+    const r = canvasRef.current.getBoundingClientRect()
+    return {mx: t.clientX - r.left, my: t.clientY - r.top}
+  }, [])
+
+  // 尝试命中已有图形并开始拖拽（cursor 模式）
+  const tryStartDrag = useCallback(
+    (mx: number, my: number) => {
+      if (!chart || !candleSeries) return false
+      for (const d of drawings) {
+        if (d.type === 'trendline' && d.time2 != null) {
+          const ep = hitTestEndpoint(d, mx, my, chart, candleSeries)
+          if (ep) {
+            dragRef.current = {id: d.id, type: ep}
+            dragStartRef.current = {
+              mx,
+              my,
+              time1: d.time1,
+              price1: d.price1,
+              time2: d.time2,
+              price2: d.price2
+            }
+            return true
+          }
+        }
+        if (hitTest(d, mx, my, chart, candleSeries)) {
+          dragRef.current = {id: d.id, type: 'line'}
+          dragStartRef.current = {
+            mx,
+            my,
+            time1: d.time1,
+            price1: d.price1,
+            time2: d.time2,
+            price2: d.price2
+          }
+          return true
+        }
+      }
+      return false
+    },
+    [chart, candleSeries, drawings]
+  )
+
+  // 执行拖拽更新（cursor 模式）
+  const doDrag = useCallback(
+    (mx: number, my: number) => {
+      if (!dragRef.current || !dragStartRef.current || !chart || !candleSeries)
+        return
+      const drag = dragRef.current
+      const start = dragStartRef.current
+      const d = drawings.find(dd => dd.id === drag.id)
+      if (!d) return
+      const ts = chart.timeScale()
+      if (drag.type === 'line') {
+        const dt = ts.coordinateToTime(mx)
+        const dp = candleSeries.coordinateToPrice(my)
+        const st = ts.coordinateToTime(start.mx)
+        const sp = candleSeries.coordinateToPrice(start.my)
+        if (dt === null || dp === null || st === null || sp === null) return
+        const offsetT = (dt as number) - (st as number)
+        const offsetP = dp - sp
+        const updates: Partial<Omit<TrendLine, 'id'>> = {
+          time1: start.time1 + offsetT,
+          price1: start.price1 + offsetP
+        }
+        if (start.time2 != null) {
+          updates.time2 = start.time2 + offsetT
+          updates.price2 = (start.price2 ?? start.price1) + offsetP
+        }
+        onUpdateDrawing?.(drag.id, updates)
+      } else if (drag.type === 'start') {
+        const t = ts.coordinateToTime(mx)
+        const p = candleSeries.coordinateToPrice(my)
+        if (t !== null && p !== null) {
+          onUpdateDrawing?.(drag.id, {time1: t as number, price1: p})
+        }
+      } else if (drag.type === 'end') {
+        const t = ts.coordinateToTime(mx)
+        const p = candleSeries.coordinateToPrice(my)
+        if (t !== null && p !== null) {
+          onUpdateDrawing?.(drag.id, {time2: t as number, price2: p})
+        }
+      }
+    },
+    [chart, candleSeries, drawings, onUpdateDrawing]
+  )
+
+  // global touchstart: 触控开始（不需要 cursor 模式，按住辅助线即可拖拽）
+  useEffect(() => {
+    let longPressTimer: ReturnType<typeof setTimeout> | undefined
+    let dragStarted = false
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (!editMode || !chart || !candleSeries || !canvasRef.current) return
+      const t = e.touches[0]
+      const r = canvasRef.current.getBoundingClientRect()
+      const mx = t.clientX - r.left
+      const my = t.clientY - r.top
+
+      // 删除模式（仅在编辑模式下）：触碰辅助线直接删除
+      if (deleteMode) {
+        for (const d of drawings) {
+          if (hitTest(d, mx, my, chart, candleSeries)) {
+            onDeleteDrawing(d.id)
+            return
+          }
+        }
+        return
+      }
+
+      // 长按 300ms 进入拖拽模式
+      dragStarted = false
+      longPressTimer = setTimeout(() => {
+        if (tryStartDrag(mx, my)) {
+          dragStarted = true
+        }
+      }, 300)
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!dragRef.current || !chart || !candleSeries || !canvasRef.current)
+        return
+      e.preventDefault()
+      const t = e.touches[0]
+      const r = canvasRef.current.getBoundingClientRect()
+      doDrag(t.clientX - r.left, t.clientY - r.top)
+    }
+
+    const onTouchEnd = () => {
+      clearTimeout(longPressTimer)
+      if (dragRef.current) {
+        dragRef.current = null
+        dragStartRef.current = null
+      }
+      dragStarted = false
+    }
+
+    document.addEventListener('touchstart', onTouchStart, {passive: true})
+    document.addEventListener('touchmove', onTouchMove, {passive: false})
+    document.addEventListener('touchend', onTouchEnd)
+    return () => {
+      clearTimeout(longPressTimer)
+      document.removeEventListener('touchstart', onTouchStart)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [
+    editMode,
+    activeTool,
+    chart,
+    candleSeries,
+    drawings,
+    tryStartDrag,
+    doDrag,
+    onDeleteDrawing,
+    deleteMode
+  ])
+
+  // 编辑模式或绘图工具激活时拦截事件，否则放行让图表可滚动
+  const interactive = editMode || activeTool !== 'cursor'
 
   return (
     <div
@@ -616,7 +794,7 @@ export default function DrawingOverlay({
       )}
       {hovered && hoverPos && (
         <div
-          className="absolute z-50 bg-[#1c1c1f] border border-gray-700 rounded-lg shadow-xl px-3 py-2 text-xs whitespace-nowrap pointer-events-none"
+          className="fixed z-50 bg-[#1c1c1f] border border-gray-700 rounded-lg shadow-xl px-3 py-2 text-xs whitespace-nowrap pointer-events-none"
           style={{
             left: hoverPos.x,
             top: hoverPos.y,

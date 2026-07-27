@@ -576,8 +576,8 @@ export const symbolReviews = pgTable(
     /** 交易对，如 BTC/USDT:USDT */
     symbol: varchar('symbol', {length: 30}).notNull(),
 
-    /** 日期 YYYY-MM-DD */
-    date: varchar('date', {length: 10}).notNull(),
+    /** 存储 ISO 时间戳，用于记录实际写入时间 */
+    date: varchar('date', {length: 30}).notNull(),
 
     /** 标题 */
     title: varchar('title', {length: 200}).default(''),
@@ -592,11 +592,8 @@ export const symbolReviews = pgTable(
     updatedAt: timestamp('updated_at').defaultNow().notNull()
   },
   table => ({
-    /** 每天每币种一条（按用户隔离） */
-    symbolDateIdx: uniqueIndex('idx_sr_symbol_date').on(
-      table.symbol,
-      table.date
-    ),
+    /** 按币种和用户查询加速 */
+    symbolDateIdx: index('idx_sr_symbol_date').on(table.symbol),
     userIdx: index('idx_sr_user').on(table.userId)
   })
 )
@@ -620,8 +617,8 @@ export const favoriteSymbols = pgTable(
     /** 基础币种 */
     base: varchar('base', {length: 20}).notNull(),
 
-    /** 加入时的每日行情日期 YYYY-MM-DD */
-    date: varchar('date', {length: 10}).notNull(),
+    /** 加入时的每日行情日期 YYYY-MM-DD（不再使用，字段保留兼容） */
+    date: varchar('date', {length: 10}).default(''),
 
     createdAt: timestamp('created_at').defaultNow().notNull()
   },

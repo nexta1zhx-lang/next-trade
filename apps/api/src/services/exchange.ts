@@ -31,39 +31,6 @@ function getExchange(id: ExchangeId): Exchange {
   return exchange
 }
 
-let binanceFuture: InstanceType<typeof ccxt.binance> | null = null
-let loadingFuture: Promise<InstanceType<typeof ccxt.binance>> | null = null
-
-/**
- * 获取共享的 Binance USDT 永续合约交易所实例
- * 复用 loadMarkets 避免每次请求都拉取全量市场数据
- */
-export async function getBinanceFuture(): Promise<
-  InstanceType<typeof ccxt.binance>
-> {
-  if (binanceFuture) return binanceFuture
-  if (loadingFuture) return loadingFuture
-
-  loadingFuture = (async () => {
-    try {
-      const ex = new ccxt.binance({
-        enableRateLimit: true,
-        timeout: 30000,
-        options: {defaultType: 'swap'}
-      })
-      await ex.loadMarkets()
-      binanceFuture = ex
-      loadingFuture = null
-      return ex
-    } catch (err) {
-      loadingFuture = null // 允许下次重试
-      throw err
-    }
-  })()
-
-  return loadingFuture
-}
-
 export async function fetchTicker(
   exchangeId: ExchangeId,
   symbol: string

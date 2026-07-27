@@ -14,8 +14,9 @@ import {
 import type {DailyAnalysisResult, DailyAnalysisItem} from '@nexttrade/shared'
 import type {FavoriteSymbol} from '@nexttrade/shared'
 import dynamic from 'next/dynamic'
-// 导航用 window.history，避免静态导出 router.push 不生效
+import {useRouter} from 'next/navigation'
 import {authHeaders, getToken, API_ORIGIN} from '@/lib/api'
+import {useDeviceType} from '@/hooks/useDeviceType'
 import {useUserConfig} from '@/hooks/useUserConfig'
 import {useTickerWs, type TickerData} from '@/hooks/useTickerWs'
 
@@ -93,9 +94,14 @@ export default function DailyAnalysisPage() {
   const [selectedItem, setSelectedItem] = useState<DailyAnalysisItem | null>(
     null
   )
+  const {isMobile} = useDeviceType()
+  const router = useRouter()
+  const [chartExpanded, setChartExpanded] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeTab, setActiveTab] = useState<'daily' | 'all' | 'fav'>('daily')
+  const [activeTab, setActiveTab] = useState<'fav' | 'today' | 'yesterday'>(
+    'fav'
+  )
 
   // ─── 全部 Tab 排序 ───
   const [allSortKey, setAllSortKey] = useState<AllSortKey>('quoteVol')
@@ -119,8 +125,6 @@ export default function DailyAnalysisPage() {
   }
 
   /** 将 BTC/USDT:USDT 转为 Binance ticker 格式 BTCUSDT */
-  const toBinanceSymbol = (s: string) => s.replace('/USDT:USDT', 'USDT')
-
   // ─── 收藏 ───
   const [favorites, setFavorites] = useState<FavoriteSymbol[]>([])
   const [favLoading, setFavLoading] = useState(false)
@@ -188,8 +192,7 @@ export default function DailyAnalysisPage() {
           headers: {'Content-Type': 'application/json', ...authHeaders()},
           body: JSON.stringify({
             symbol: item.symbol,
-            base: item.base,
-            date
+            base: item.base
           })
         })
         const json = await res.json()
@@ -258,14 +261,24 @@ export default function DailyAnalysisPage() {
     }
   }
 
-  const selectSymbol = useCallback((item: DailyAnalysisItem) => {
-    setSelectedItem(item)
-    window.history.pushState(
-      null,
-      '',
-      `/daily-analysis?symbol=${encodeURIComponent(item.symbol)}`
-    )
-  }, [])
+  const selectSymbol = useCallback(
+    (item: DailyAnalysisItem) => {
+      if (isMobile) {
+        // 移动端跳转到独立 K 线路由页面
+        router.push(
+          `/daily-analysis/kline?symbol=${encodeURIComponent(item.symbol)}&date=${encodeURIComponent(date)}`
+        )
+      } else {
+        setSelectedItem(item)
+        window.history.pushState(
+          null,
+          '',
+          `/daily-analysis?symbol=${encodeURIComponent(item.symbol)}`
+        )
+      }
+    },
+    [isMobile, router, date]
+  )
 
   const closeSymbol = useCallback(() => {
     setSelectedItem(null)
@@ -277,44 +290,20 @@ export default function DailyAnalysisPage() {
       <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4 mb-3 shrink-0">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground hidden sm:inline">
-              日期
+            <span className="ml-auto flex items-center gap-2 sm:gap-3">
+              {clock && (
+                <span className="text-xs font-mono tabular-nums text-gray-400">
+                  {clock}
+                </span>
+              )}
+              {(loading || refreshing) && (
+                <span className="flex items-center gap-1.5 text-xs text-primary">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  {refreshing ? '刷新中' : '加载中'}
+                </span>
+              )}
             </span>
-            <input
-              type="date"
-              value={date}
-              max={yesterdayUTC()}
-              onChange={e => setDate(e.target.value)}
-              className="bg-[#0a0a0b] border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-gray-200
-                         focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark] w-32 sm:w-36"
-            />
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center gap-1 bg-[#0a0a0b] border border-gray-700 rounded-lg px-2 py-1.5
-                         text-xs text-gray-400 hover:text-primary hover:border-primary/40 transition-colors
-                         disabled:opacity-50 disabled:cursor-not-allowed"
-              title="手动刷新同步（跳过缓存，重新拉取 Binance 数据）"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`}
-              />
-              <span className="hidden sm:inline">刷新</span>
-            </button>
           </div>
-          <span className="ml-auto flex items-center gap-2 sm:gap-3">
-            {clock && (
-              <span className="text-xs font-mono tabular-nums text-gray-400">
-                {clock}
-              </span>
-            )}
-            {(loading || refreshing) && (
-              <span className="flex items-center gap-1.5 text-xs text-primary">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                {refreshing ? '刷新中' : '加载中'}
-              </span>
-            )}
-          </span>
         </div>
       </div>
 
@@ -326,8 +315,10 @@ export default function DailyAnalysisPage() {
 
       {data && (
         <div className="flex flex-col md:flex-row gap-3 lg:gap-4 flex-1 min-h-0 overflow-hidden">
-          {/* 左栏 */}
-          <div className="w-full md:w-[220px] lg:w-[280px] flex flex-col flex-1 md:flex-none min-h-0">
+          {/* 左栏 — 放大时隐藏 */}
+          <div
+            className={`w-full md:w-[220px] lg:w-[280px] flex flex-col flex-1 md:flex-none min-h-0 ${chartExpanded ? 'hidden' : ''}`}
+          >
             {/* 搜索框 */}
             <div className="bg-[#18181b] rounded-xl border border-gray-800 overflow-hidden flex flex-col flex-1">
               <div className="px-3 pt-2 pb-1.5 shrink-0">
@@ -344,75 +335,96 @@ export default function DailyAnalysisPage() {
                 </div>
               </div>
 
-              {/* Tab 切换 */}
+              {/* Tab 切换 — 关注/今日/昨日 */}
               <div className="flex px-3 gap-1 shrink-0">
                 <button
-                  onClick={() => setActiveTab('daily')}
-                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
-                    activeTab === 'daily'
+                  onClick={() => setActiveTab('fav')}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 ${
+                    activeTab === 'fav'
                       ? 'bg-primary/15 text-primary font-medium'
                       : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  每日
+                  <Star className="w-3 h-3" />
+                  关注
                 </button>
                 <button
-                  onClick={() => setActiveTab('all')}
+                  onClick={() => setActiveTab('today')}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
-                    activeTab === 'all'
+                    activeTab === 'today'
                       ? 'bg-primary/15 text-primary font-medium'
                       : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  全部
+                  今日
                 </button>
-                {loggedIn && (
-                  <button
-                    onClick={() => setActiveTab('fav')}
-                    className={`flex-1 text-xs py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 ${
-                      activeTab === 'fav'
-                        ? 'bg-primary/15 text-primary font-medium'
-                        : 'text-gray-500 hover:text-gray-300'
-                    }`}
-                  >
-                    <Star className="w-3 h-3" />
-                    自选
-                  </button>
-                )}
+                <button
+                  onClick={() => setActiveTab('yesterday')}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                    activeTab === 'yesterday'
+                      ? 'bg-primary/15 text-primary font-medium'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  昨日
+                </button>
               </div>
 
               {/* 列表列头 */}
-              {activeTab === 'daily' && (
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0">
-                  <span className="w-5 shrink-0 text-center">#</span>
-                  <span className="flex-1 flex items-center gap-1">
-                    <span>币种</span>
+              {activeTab === 'yesterday' && (
+                <div>
+                  {/* 昨日日期选择 */}
+                  <div className="flex items-center justify-end gap-2 px-3 py-1.5 border-b border-gray-800/30 shrink-0">
+                    <input
+                      type="date"
+                      value={date}
+                      max={yesterdayUTC()}
+                      onChange={e => setDate(e.target.value)}
+                      className="bg-[#0a0a0b] border border-gray-700 rounded px-2 py-1 text-xs text-gray-200
+                                 focus:outline-none focus:border-blue-500 transition-colors [color-scheme:dark] w-36"
+                    />
                     <button
-                      onClick={() => toggleSort('quoteVolume')}
-                      className={`flex items-center gap-0.5 hover:text-gray-400 transition-colors ${sortKey === 'quoteVolume' ? 'text-primary' : ''}`}
+                      onClick={handleRefresh}
+                      disabled={refreshing}
+                      className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-primary transition-colors disabled:opacity-50"
+                      title="重新拉取数据"
                     >
-                      量 <ArrowUpDown className="w-2.5 h-2.5" />
+                      <RefreshCw
+                        className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`}
+                      />
                     </button>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <button
-                      onClick={() => toggleSort('change')}
-                      className={`flex items-center gap-0.5 hover:text-gray-400 transition-colors ${sortKey === 'change' ? 'text-primary' : ''}`}
-                    >
-                      涨跌 <ArrowUpDown className="w-2.5 h-2.5" />
-                    </button>
-                    <button
-                      onClick={() => toggleSort('amplitude')}
-                      className={`flex items-center gap-0.5 hover:text-gray-400 transition-colors ${sortKey === 'amplitude' ? 'text-primary' : ''}`}
-                    >
-                      振幅 <ArrowUpDown className="w-2.5 h-2.5" />
-                    </button>
-                  </span>
+                  </div>
+                  <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0">
+                    <span className="w-5 shrink-0 text-center">#</span>
+                    <span className="flex-1 flex items-center gap-1">
+                      <span>币种</span>
+                      <button
+                        onClick={() => toggleSort('quoteVolume')}
+                        className={`flex items-center gap-0.5 hover:text-gray-400 transition-colors ${sortKey === 'quoteVolume' ? 'text-primary' : ''}`}
+                      >
+                        量 <ArrowUpDown className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleSort('change')}
+                        className={`flex items-center gap-0.5 hover:text-gray-400 transition-colors ${sortKey === 'change' ? 'text-primary' : ''}`}
+                      >
+                        涨跌 <ArrowUpDown className="w-2.5 h-2.5" />
+                      </button>
+                      <button
+                        onClick={() => toggleSort('amplitude')}
+                        className={`flex items-center gap-0.5 hover:text-gray-400 transition-colors ${sortKey === 'amplitude' ? 'text-primary' : ''}`}
+                      >
+                        振幅 <ArrowUpDown className="w-2.5 h-2.5" />
+                      </button>
+                    </span>
+                  </div>
                 </div>
               )}
 
-              {/* 全部 Tab 列头 */}
-              {activeTab === 'all' && (
+              {/* 今日 Tab 列头 */}
+              {activeTab === 'today' && (
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0">
                   <span className="w-5 shrink-0" />
                   <span className="flex-1 flex items-center gap-2">
@@ -446,14 +458,14 @@ export default function DailyAnalysisPage() {
                 </div>
               )}
 
-              {/* 自选 Tab 列头 */}
+              {/* 关注 Tab 列头 */}
               {activeTab === 'fav' && (
                 <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0" />
               )}
 
               {/* 列表内容 */}
               <div className="flex-1 overflow-y-auto">
-                {activeTab === 'daily' && (
+                {activeTab === 'yesterday' && (
                   <>
                     {(() => {
                       const filtered = searchQuery
@@ -528,7 +540,7 @@ export default function DailyAnalysisPage() {
                   </>
                 )}
 
-                {activeTab === 'all' && (
+                {activeTab === 'today' && (
                   <>
                     {(() => {
                       const tickerKeys = Object.keys(tickerMap)
@@ -599,7 +611,7 @@ export default function DailyAnalysisPage() {
                       ) : (
                         sorted.map(entry => {
                           const {binanceSymbol, base, ticker} = entry
-                          const fullSymbol = `${base}/USDT:USDT`
+                          const fullSymbol = binanceSymbol
                           const sel = selectedItem?.symbol === fullSymbol
                           const isFav = favSymbolSet.has(fullSymbol)
                           // 点击时尝试从 data 找 item，否则用一个最小对象
@@ -689,7 +701,7 @@ export default function DailyAnalysisPage() {
                       </div>
                     ) : favorites.length === 0 ? (
                       <div className="text-center text-gray-500 py-12 text-xs">
-                        {loggedIn ? '在全部列表中收藏币种' : '登录后可收藏币种'}
+                        {loggedIn ? '在今日列表中收藏币种' : '登录后可收藏币种'}
                       </div>
                     ) : (
                       (() => {
@@ -700,98 +712,89 @@ export default function DailyAnalysisPage() {
                                 .includes(searchQuery.toLowerCase())
                             )
                           : favorites
-                        // 按日期分组
-                        const groups: Record<string, typeof filtered> = {}
-                        for (const f of filtered) {
-                          if (!groups[f.date]) groups[f.date] = []
-                          groups[f.date].push(f)
-                        }
-                        const sortedDates = Object.keys(groups).sort((a, b) =>
-                          b.localeCompare(a)
-                        )
-                        return sortedDates.map(date => (
-                          <div key={date}>
-                            {/* 日期分组标题 */}
-                            <div className="sticky top-0 z-10 bg-[#18181b] px-3 py-1.5 text-[10px] text-gray-500 font-medium border-b border-gray-800/50">
-                              {date}
-                            </div>
-                            {groups[date].map(fav => {
-                              const ticker =
-                                tickerMap[toBinanceSymbol(fav.symbol)]
-                              const sel = selectedItem?.symbol === fav.symbol
-                              return (
-                                <div
-                                  key={fav.symbol}
-                                  onClick={() => {
-                                    const item = data?.rankAmplitude.find(
-                                      i => i.symbol === fav.symbol
-                                    )
-                                    if (item) selectSymbol(item)
-                                  }}
-                                  className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
-                                    sel
-                                      ? 'bg-primary/10 border-l-2 border-l-primary'
-                                      : 'hover:bg-gray-800/30'
+                        return filtered.map(fav => {
+                          const ticker = tickerMap[fav.symbol]
+                          const sel = selectedItem?.symbol === fav.symbol
+                          return (
+                            <div
+                              key={fav.symbol}
+                              onClick={() => {
+                                const item = data?.rankAmplitude.find(
+                                  i => i.symbol === fav.symbol
+                                )
+                                if (item) selectSymbol(item)
+                              }}
+                              className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
+                                sel
+                                  ? 'bg-primary/10 border-l-2 border-l-primary'
+                                  : 'hover:bg-gray-800/30'
+                              }`}
+                            >
+                              <span
+                                className="w-5 shrink-0 text-center cursor-pointer"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  const item = {
+                                    symbol: fav.symbol,
+                                    base: fav.base,
+                                    open: 0,
+                                    high: 0,
+                                    low: 0,
+                                    close: 0,
+                                    amplitude: 0,
+                                    change: 0,
+                                    quoteVolume: 0,
+                                    isDoji: false
+                                  }
+                                  toggleFavorite(item)
+                                }}
+                              >
+                                <Star className="w-3 h-3 text-yellow-400 fill-yellow-400 mx-auto hover:opacity-70 transition-opacity" />
+                              </span>
+                              {/* 币种 + 量 */}
+                              <span className="flex-1 flex flex-col min-w-0 leading-tight">
+                                <span className="font-medium text-gray-200 truncate">
+                                  {fav.base}
+                                </span>
+                                <span className="text-gray-500 truncate text-[10px]">
+                                  {ticker
+                                    ? fmtVol(Number(ticker.quoteVol))
+                                    : '--'}
+                                </span>
+                              </span>
+                              {/* 近 10 天振幅榜前 10 次数 */}
+                              <span
+                                className="text-[10px] text-gray-600 shrink-0 mr-2"
+                                title="近10天进入振幅榜前10的次数"
+                              >
+                                {fav.top10Count != null
+                                  ? `🏆 ${fav.top10Count}次`
+                                  : ''}
+                              </span>
+                              {/* 价格 + 涨跌幅 */}
+                              <span className="flex flex-col items-end leading-tight shrink-0 min-w-[88px]">
+                                <span className="font-mono tabular-nums text-gray-200">
+                                  {ticker
+                                    ? fmtPrice(Number(ticker.price))
+                                    : '--'}
+                                </span>
+                                <span
+                                  className={`text-[10px] ${
+                                    ticker
+                                      ? Number(ticker.change) >= 0
+                                        ? 'text-emerald-400'
+                                        : 'text-red-400'
+                                      : 'text-gray-600'
                                   }`}
                                 >
-                                  <span
-                                    className="w-5 shrink-0 text-center cursor-pointer"
-                                    onClick={e => {
-                                      e.stopPropagation()
-                                      const item = {
-                                        symbol: fav.symbol,
-                                        base: fav.base,
-                                        open: 0,
-                                        high: 0,
-                                        low: 0,
-                                        close: 0,
-                                        amplitude: 0,
-                                        change: 0,
-                                        quoteVolume: 0,
-                                        isDoji: false
-                                      }
-                                      toggleFavorite(item)
-                                    }}
-                                  >
-                                    <Star className="w-3 h-3 text-yellow-400 fill-yellow-400 mx-auto hover:opacity-70 transition-opacity" />
-                                  </span>
-                                  {/* 币种 + 量 */}
-                                  <span className="flex-1 flex flex-col min-w-0 leading-tight">
-                                    <span className="font-medium text-gray-200 truncate">
-                                      {fav.base}
-                                    </span>
-                                    <span className="text-gray-500 truncate text-[10px]">
-                                      {ticker
-                                        ? fmtVol(Number(ticker.quoteVol))
-                                        : '--'}
-                                    </span>
-                                  </span>
-                                  {/* 价格 + 涨跌幅 */}
-                                  <span className="flex flex-col items-end leading-tight shrink-0 min-w-[88px]">
-                                    <span className="font-mono tabular-nums text-gray-200">
-                                      {ticker
-                                        ? fmtPrice(Number(ticker.price))
-                                        : '--'}
-                                    </span>
-                                    <span
-                                      className={`text-[10px] ${
-                                        ticker
-                                          ? Number(ticker.change) >= 0
-                                            ? 'text-emerald-400'
-                                            : 'text-red-400'
-                                          : 'text-gray-600'
-                                      }`}
-                                    >
-                                      {ticker
-                                        ? `${Number(ticker.change) >= 0 ? '+' : ''}${Number(ticker.change).toFixed(2)}%`
-                                        : '--'}
-                                    </span>
-                                  </span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        ))
+                                  {ticker
+                                    ? `${Number(ticker.change) >= 0 ? '+' : ''}${Number(ticker.change).toFixed(2)}%`
+                                    : '--'}
+                                </span>
+                              </span>
+                            </div>
+                          )
+                        })
                       })()
                     )}
                   </>
@@ -799,7 +802,7 @@ export default function DailyAnalysisPage() {
               </div>
 
               {/* Footer */}
-              {activeTab === 'daily' && (
+              {activeTab === 'yesterday' && (
                 <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 flex gap-2 shrink-0">
                   <span>共 {data.totalSymbols} 个</span>
                   <span>筛选 {data.filteredCount} 个</span>
@@ -808,7 +811,7 @@ export default function DailyAnalysisPage() {
                   </span>
                 </div>
               )}
-              {activeTab === 'all' && (
+              {activeTab === 'today' && (
                 <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 flex gap-2 shrink-0">
                   <span>
                     {
@@ -828,7 +831,7 @@ export default function DailyAnalysisPage() {
               )}
               {activeTab === 'fav' && (
                 <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 shrink-0">
-                  <span>自选 {favorites.length} 个</span>
+                  <span>关注 {favorites.length} 个</span>
                 </div>
               )}
             </div>
@@ -841,6 +844,9 @@ export default function DailyAnalysisPage() {
                 item={selectedItem}
                 selectedDate={date}
                 onClose={closeSymbol}
+                expanded={chartExpanded}
+                onExpandToggle={() => setChartExpanded(v => !v)}
+                ticker={tickerMap[selectedItem.symbol]}
               />
             ) : (
               <div className="bg-[#18181b] rounded-xl border border-gray-800 flex items-center justify-center min-h-[300px] h-full">
@@ -852,21 +858,7 @@ export default function DailyAnalysisPage() {
             )}
           </div>
 
-          {/* 移动端全屏 K 线详情 */}
-          {selectedItem && (
-            <div
-              className="fixed inset-0 z-40 md:hidden bg-background safe-top"
-              style={{
-                paddingBottom: 'calc(56px + env(safe-area-inset-bottom, 0px))'
-              }}
-            >
-              <SymbolDetail
-                item={selectedItem}
-                selectedDate={date}
-                onClose={closeSymbol}
-              />
-            </div>
-          )}
+          {/* 移动端 K 线已跳转到独立路由 /daily-analysis/kline */}
         </div>
       )}
 

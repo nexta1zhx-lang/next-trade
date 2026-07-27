@@ -1,9 +1,10 @@
 'use client'
 
-import {useEffect, useRef, useCallback} from 'react'
+import {useEffect, useRef, useCallback, useState} from 'react'
 import {API_ORIGIN} from '@/lib/api'
 import {useUserConfig} from '@/hooks/useUserConfig'
 import {useKlineWs} from '@/hooks/useKlineWs'
+import {useDeviceType} from '@/hooks/useDeviceType'
 import {
   createChart,
   CandlestickSeries,
@@ -56,6 +57,8 @@ function fmtPrice(price: number): string {
 /** 不同周期每根 K 线对应的毫秒数 */
 function tfMs(tf: string): number {
   switch (tf) {
+    case '5m':
+      return 5 * 60 * 1000
     case '15m':
       return 15 * 60 * 1000
     case '1h':
@@ -64,6 +67,8 @@ function tfMs(tf: string): number {
       return 4 * 3600 * 1000
     case '1d':
       return 86400 * 1000
+    case '3d':
+      return 3 * 86400 * 1000
     default:
       return 3600 * 1000
   }
@@ -79,6 +84,7 @@ export default function KlineChart({
 }: KlineChartProps) {
   const userConfig = useUserConfig()
   const refreshInterval = refreshIntervalProp ?? userConfig.klineInterval
+  const {isMobile} = useDeviceType()
 
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
@@ -99,6 +105,33 @@ export default function KlineChart({
   refreshIntervalRef.current = refreshInterval
   const yLabelRef = useRef<HTMLDivElement>(null)
   const xLabelRef = useRef<HTMLDivElement>(null)
+
+  const [isLogScale, setIsLogScale] = useState(false)
+
+  const handleAutoFit = useCallback(() => {
+    const chart = chartRef.current
+    const series = seriesRef.current
+    if (!chart || !series) return
+    const data = series.data()
+    if (data.length === 0) return
+    // 根据容器宽度动态计算可见 K 线数量（每根约 8px 宽度）
+    const containerW = containerRef.current?.clientWidth ?? 800
+    const visibleCount = Math.max(20, Math.floor(containerW / 8))
+    const last = data[data.length - 1].time as number
+    const first = data[Math.max(0, data.length - visibleCount)].time as number
+    chart.timeScale().setVisibleRange({
+      from: first as any,
+      to: last as any
+    })
+  }, [])
+
+  const handleToggleLog = useCallback(() => {
+    const chart = chartRef.current
+    if (!chart) return
+    const next = !isLogScale
+    chart.priceScale('right').applyOptions({mode: next ? 1 : 0})
+    setIsLogScale(next)
+  }, [isLogScale])
 
   const fetchKlines = useCallback(
     async (since?: number): Promise<Candle[]> => {
@@ -161,18 +194,19 @@ export default function KlineChart({
     const chart = createChart(container, {
       layout: {
         background: {type: ColorType.Solid, color: '#18181b'},
-        textColor: '#a1a1aa'
+        textColor: '#a1a1aa',
+        fontSize: isMobile ? 10 : 11
       },
       grid: {vertLines: {color: '#27272a'}, horzLines: {color: '#27272a'}},
       crosshair: {
         mode: 0,
         vertLine: {labelVisible: false},
-        horzLine: {labelVisible: true, labelBackgroundColor: '#27272a'}
+        horzLine: {labelVisible: false}
       },
       rightPriceScale: {
-        borderColor: '#3f3f46',
+        borderVisible: false,
         scaleMargins: {top: 0.08, bottom: 0.1},
-        minimumWidth: 80
+        minimumWidth: 60
       },
       localization: {
         priceFormatter: fmtPrice,
@@ -414,6 +448,15 @@ export default function KlineChart({
     }
   }, [height])
 
+  // 同步 isMobile 变化到 chart 实例（字体大小）
+  useEffect(() => {
+    if (chartRef.current) {
+      chartRef.current.applyOptions({
+        layout: {fontSize: isMobile ? 10 : 11}
+      })
+    }
+  }, [isMobile])
+
   // 定时轮询刷新（WS 模式下关闭轮询）
   useEffect(() => {
     if (refreshInterval <= 0 || userConfig.klineMode === 'ws') return
@@ -461,6 +504,31 @@ export default function KlineChart({
                    whitespace-nowrap"
         style={{bottom: 4, left: 0}}
       />
+      {/* 右下角工具按钮 */}
+      <div className="absolute bottom-2 right-2 flex gap-1 z-40">
+        <button
+          onClick={handleAutoFit}
+          className="w-6 h-6 flex items-center justify-center rounded
+                     bg-black/50 hover:bg-black/70 border border-gray-700
+                     text-[11px] font-bold text-gray-400 hover:text-gray-200
+                     transition-colors"
+          title="自动适应"
+        >
+          A
+        </button>
+        <button
+          onClick={handleToggleLog}
+          className={`w-6 h-6 flex items-center justify-center rounded border text-[11px] font-bold transition-colors
+            ${
+              isLogScale
+                ? 'bg-primary/20 border-primary/40 text-primary'
+                : 'bg-black/50 hover:bg-black/70 border-gray-700 text-gray-400 hover:text-gray-200'
+            }`}
+          title={isLogScale ? '切换为线性视图' : '切换为对数视图'}
+        >
+          L
+        </button>
+      </div>
     </div>
   )
 }

@@ -11,13 +11,13 @@ import {
 import {eq, and, desc} from 'drizzle-orm'
 import {redis} from '../services/redis.js'
 import {authMiddleware} from '../middleware/auth.js'
-import {getBinanceFuture} from '../services/exchange.js'
+import {fetchKlines as binanceKlines} from '../services/binance.js'
 
 const router = new Hono<{Variables: {userId: number; username: string}}>()
 
 // ─── 获取 K 线数据 ───
 const klinesSchema = z.object({
-  timeframe: z.enum(['15m', '1h', '4h', '1d']).default('1h'),
+  timeframe: z.enum(['5m', '15m', '1h', '4h', '1d', '3d']).default('1h'),
   limit: z.coerce.number().int().min(1).max(1000).default(200),
   since: z.coerce.number().int().optional()
 })
@@ -27,17 +27,13 @@ router.get('/:symbol/klines', zValidator('query', klinesSchema), async c => {
   const {timeframe, limit, since} = c.req.valid('query')
 
   try {
-    const exchange = await getBinanceFuture()
-    const ohlcv = await exchange.fetchOHLCV(symbol, timeframe, since, limit)
-    const candles = ohlcv.map((c: any) => ({
-      time: Math.floor((c[0] ?? 0) / 1000),
-      open: c[1] ?? 0,
-      high: c[2] ?? 0,
-      low: c[3] ?? 0,
-      close: c[4] ?? 0,
-      volume: c[5] ?? 0
-    }))
-
+    // since 是秒级时间戳，Binance API 需要毫秒级
+    const candles = await binanceKlines(
+      symbol,
+      timeframe,
+      limit,
+      since ? since * 1000 : undefined
+    )
     return c.json({success: true, data: candles})
   } catch (err) {
     console.error(`Failed to fetch klines for ${symbol}:`, err)
@@ -194,13 +190,16 @@ router.get('/:symbol/reviews', authMiddleware, async c => {
     .where(
       and(eq(symbolReviews.symbol, symbol), eq(symbolReviews.userId, userId))
     )
-    .orderBy(desc(symbolReviews.date))
+    .orderBy(desc(symbolReviews.createdAt))
 
   return c.json({success: true, data: reviews})
 })
 
 const saveReviewSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD'),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD')
+    .optional(),
   title: z.string().max(200).default(''),
   content: z.string().default(''),
   tags: z.array(z.object({tag: z.string(), color: z.string()})).default([])
@@ -215,25 +214,16 @@ router.post(
     const userId = c.get('userId') as number
     const {date, title, content, tags} = c.req.valid('json')
 
-    // UPSERT：同一天同一币种同用户只保留一条
+    // 直接插入新记录（不受日期约束）
     const [review] = await db
       .insert(symbolReviews)
       .values({
         userId,
         symbol,
-        date,
+        date: date || new Date().toISOString().slice(0, 19),
         title: title || '',
         content: content || '',
         tags: JSON.stringify(tags)
-      })
-      .onConflictDoUpdate({
-        target: [symbolReviews.symbol, symbolReviews.date],
-        set: {
-          title: title || '',
-          content: content || '',
-          tags: JSON.stringify(tags),
-          updatedAt: new Date()
-        }
       })
       .returning()
 

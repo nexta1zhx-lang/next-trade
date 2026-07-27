@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {zValidator} from '@hono/zod-validator'
 import {db} from '../db/index.js'
 import {favoriteSymbols} from '../db/schema.js'
-import {eq, and, desc} from 'drizzle-orm'
+import {eq, and, desc, sql} from 'drizzle-orm'
 import {authMiddleware} from '../middleware/auth.js'
 import type {FavoriteSymbol} from '@nexttrade/shared'
 
@@ -12,7 +12,7 @@ const router = new Hono<{Variables: {userId: number; username: string}}>()
 // 所有操作都需要登录
 router.use('*', authMiddleware)
 
-// ─── GET /api/favorites — 获取当前用户的自选列表 ───
+// ─── GET /api/favorites — 获取当前用户的自选列表 + 振幅榜统计 ───
 router.get('/', async c => {
   const userId = c.get('userId') as number
   const rows = await db
@@ -25,11 +25,48 @@ router.get('/', async c => {
     id: r.id,
     symbol: r.symbol,
     base: r.base,
-    date: r.date,
     createdAt: r.createdAt?.toISOString() ?? ''
   }))
 
-  return c.json({success: true, data})
+  // 并发查询每个自选币种近 10 天的振幅榜前 10 统计
+  const tenDaysAgo = new Date()
+  tenDaysAgo.setUTCDate(tenDaysAgo.getUTCDate() - 10)
+  const fromDate = tenDaysAgo.toISOString().slice(0, 10)
+
+  const stats = await Promise.all(
+    data.map(async fav => {
+      const rows2 = await db.execute(
+        sql`
+          WITH top_by_date AS (
+            SELECT date, symbol, amplitude,
+              ROW_NUMBER() OVER (
+                PARTITION BY date ORDER BY amplitude DESC
+              ) AS rn
+            FROM daily_market_data
+            WHERE date >= ${fromDate}
+              AND exchange = 'binance'
+          )
+          SELECT COUNT(*) AS count
+          FROM top_by_date
+          WHERE symbol = ${fav.symbol}
+            AND rn <= 10
+        `
+      )
+      return {
+        symbol: fav.symbol,
+        top10Count: Number(rows2[0]?.count ?? 0)
+      }
+    })
+  )
+
+  const statsMap = Object.fromEntries(stats.map(s => [s.symbol, s.top10Count]))
+
+  const enriched = data.map(f => ({
+    ...f,
+    top10Count: statsMap[f.symbol] ?? 0
+  }))
+
+  return c.json({success: true, data: enriched})
 })
 
 // ─── POST /api/favorites — 添加自选 ───
@@ -41,12 +78,12 @@ const createSchema = z.object({
 
 router.post('/', zValidator('json', createSchema), async c => {
   const userId = c.get('userId') as number
-  const {symbol, base, date} = c.req.valid('json')
+  const {symbol, base} = c.req.valid('json')
 
   try {
     const [created] = await db
       .insert(favoriteSymbols)
-      .values({userId, symbol, base, date})
+      .values({userId, symbol, base, date: ''})
       .onConflictDoNothing()
       .returning()
 
