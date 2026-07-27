@@ -134,13 +134,19 @@ function FeatureCard({feature, index}: {feature: Feature; index: number}) {
   const Icon = feature.icon
   return (
     <div className="group relative rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5">
-      <div className={`absolute inset-0 rounded-xl bg-linear-to-br ${GRADIENT_MAP[index % 8]} opacity-0 group-hover:opacity-100 transition-opacity`} />
+      <div
+        className={`absolute inset-0 rounded-xl bg-linear-to-br ${GRADIENT_MAP[index % 8]} opacity-0 group-hover:opacity-100 transition-opacity`}
+      />
       <div className="relative z-10">
         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-colors">
           <Icon className="w-5 h-5 text-primary" />
         </div>
-        <h3 className="text-sm font-semibold text-foreground mb-1.5">{feature.title}</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed">{feature.desc}</p>
+        <h3 className="text-sm font-semibold text-foreground mb-1.5">
+          {feature.title}
+        </h3>
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {feature.desc}
+        </p>
       </div>
     </div>
   )
@@ -155,15 +161,25 @@ function ChangelogSection() {
       </h2>
       <div className="space-y-4">
         {CHANGELOG.map(entry => (
-          <div key={entry.version} className="relative pl-6 border-l-2 border-border">
+          <div
+            key={entry.version}
+            className="relative pl-6 border-l-2 border-border"
+          >
             <div className="absolute left-0 top-0 -translate-x-1/2 w-4 h-4 rounded-full bg-card border-2 border-primary" />
             <div className="flex items-center gap-3 mb-2">
-              <span className="text-sm font-bold text-foreground">v{entry.version}</span>
-              <span className="text-[11px] text-muted-foreground">{entry.date}</span>
+              <span className="text-sm font-bold text-foreground">
+                v{entry.version}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {entry.date}
+              </span>
             </div>
             <ul className="space-y-1">
               {entry.items.map((item, i) => (
-                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+                <li
+                  key={i}
+                  className="text-xs text-muted-foreground flex items-start gap-2"
+                >
                   <ChevronRight className="w-3 h-3 mt-0.5 shrink-0 text-primary/60" />
                   {item}
                 </li>
@@ -189,7 +205,10 @@ export default function IntroPage() {
             <span className="font-bold text-sm tracking-tight">nextTrade</span>
           </a>
           <nav className="flex items-center gap-1">
-            <a href="/daily-analysis" className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <a
+              href="/daily-analysis"
+              className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
               在线体验
             </a>
             <a
@@ -212,8 +231,12 @@ export default function IntroPage() {
               <Activity className="w-8 h-8 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-3xl font-bold text-foreground tracking-tight">nextTrade</h1>
-              <p className="text-sm text-muted-foreground">AI 辅助的 Web3 + CEX 量化交易平台</p>
+              <h1 className="text-3xl font-bold text-foreground tracking-tight">
+                nextTrade
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                AI 辅助的 Web3 + CEX 量化交易平台
+              </p>
             </div>
           </div>
 
@@ -244,9 +267,16 @@ export default function IntroPage() {
         {/* ─── 统计数据 ─── */}
         <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {STATS.map(stat => (
-            <div key={stat.label} className="rounded-xl border border-border bg-card p-4 text-center">
-              <div className="text-xl font-bold text-primary mb-1">{stat.value}</div>
-              <div className="text-[11px] text-muted-foreground">{stat.label}</div>
+            <div
+              key={stat.label}
+              className="rounded-xl border border-border bg-card p-4 text-center"
+            >
+              <div className="text-xl font-bold text-primary mb-1">
+                {stat.value}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                {stat.label}
+              </div>
             </div>
           ))}
         </section>
@@ -274,8 +304,12 @@ export default function IntroPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {ADVANTAGES.map(adv => (
                 <div key={adv.label}>
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">{adv.label}</div>
-                  <div className="text-xs text-foreground font-medium">{adv.value}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">
+                    {adv.label}
+                  </div>
+                  <div className="text-xs text-foreground font-medium">
+                    {adv.value}
+                  </div>
                 </div>
               ))}
             </div>
@@ -299,7 +333,9 @@ export default function IntroPage() {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-semibold text-foreground">{APK_LABEL}</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {APK_LABEL}
+                </span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                   {IS_DEV ? `v${APP_VERSION}-dev` : `v${APP_VERSION}`}
                 </span>
@@ -324,14 +360,18 @@ export default function IntroPage() {
             <ol className="space-y-1.5 text-[11px] text-muted-foreground list-decimal list-inside">
               <li>下载 APK 文件到手机</li>
               <li>在文件管理器中点击 APK 文件安装</li>
-              <li>如提示"未知来源应用"，前往设置 → 安全 → 允许安装未知来源应用</li>
+              <li>
+                如提示"未知来源应用"，前往设置 → 安全 → 允许安装未知来源应用
+              </li>
               <li>安装完成后打开 App，登录即可使用</li>
             </ol>
             <div className="mt-3 pt-3 border-t border-border text-[11px] text-muted-foreground">
               <p>
                 当前环境:{' '}
                 <code className="text-[10px] bg-muted px-1 rounded">
-                  {typeof window !== 'undefined' ? window.location.hostname : ''}
+                  {typeof window !== 'undefined'
+                    ? window.location.hostname
+                    : ''}
                 </code>{' '}
                 — {IS_DEV ? '开发版，连接本地 API' : '生产版，连接正式服务器'}
               </p>

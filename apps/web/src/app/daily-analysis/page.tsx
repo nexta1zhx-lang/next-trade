@@ -291,7 +291,9 @@ export default function DailyAnalysisPage() {
       <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4 mb-3 shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-gray-200">每日行情</span>
+            <span className="text-sm font-semibold text-gray-200">
+              每日行情
+            </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             {clock && (
