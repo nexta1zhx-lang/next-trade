@@ -30,27 +30,6 @@ BUILD_NUM=$((BUILD_NUM + 1))
 sed -i '' "s/^export const APP_BUILD = [0-9]*/export const APP_BUILD = $BUILD_NUM/" packages/shared/src/version.ts
 echo "  → 构建号: v${VERSION} (build ${BUILD_NUM})"
 
-# ─── 自动更新 changelog ──────────────────────────────────
-# 使用最近的 tag（如有）检测新提交，有则更新更新日志
-LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
-if [ -n "$LAST_TAG" ]; then
-  NEW_COMMITS=$(git log "${LAST_TAG}..HEAD" --oneline 2>/dev/null | wc -l | tr -d ' ')
-else
-  # 无 tag 时检查 changelog 最新日期以来的提交
-  LAST_CHANGELOG_DATE=$(python3 -c "
-import json
-with open('apk/changelog.json') as f:
-    data = json.load(f)
-print(data[-1]['date'] if data else '')
-" 2>/dev/null || echo "")
-  NEW_COMMITS=$(git log --oneline --since="${LAST_CHANGELOG_DATE}" 2>/dev/null | wc -l | tr -d ' ')
-fi
-if [ -n "$NEW_COMMITS" ] && [ "$NEW_COMMITS" -gt 0 ]; then
-  echo ""
-  echo "▶ 检测到 ${NEW_COMMITS} 个新提交，更新更新日志..."
-  bash scripts/gen-changelog.sh --auto "$VERSION"
-fi
-
 MODE="production"  # production | development
 UPLOAD=true
 SKIP_BUILD=false

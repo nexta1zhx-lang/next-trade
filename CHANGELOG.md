@@ -1,34 +1,38 @@
 # nextTrade 更新日志
 
+## [0.1.2] - 2026-07-28
+
+- ✨  更新版本信息，自动生成更新日志，优化构建脚本
+- ✨  添加版本和更新日志文件，更新构建脚本以支持自动生成
+- ✨  添加更新日志自动生成脚本，支持构建号递增和版本管理
+- ✨  将 APK 复制到 public/downloads 以便本地开发环境访问
+- ✨  使用状态管理动态更新 APK 下载链接和标签，优化开发环境检测
+- ✨  add APK build and upload script, update versioning, and enhance documentation
+- ✨  update dev script to kill processes on ports 3000 and 3001 before starting dev server
+- 🐛  更新服务器配置为 aws2，增加构建号自动递增逻辑
+- 🐛  修复 ic_launcher_background.xml 中缺失的闭合标签，更新 styles.xml 和 gradle.properties 以兼容 JDK 21
+- 🐛  添加一键部署脚本的智能路由功能，支持非服务器环境的远程部署
+- 🐛  更新应用主题颜色和样式，添加深色开屏背景以匹配暗色主题
+- 🐛  Caddyfile /api/* 和 /ws/* 用 handle 替代 handle_path，避免路径前缀被剥离
+- 🐛  更新 WebSocket 基础 URL 生成逻辑，修正 HTTPS 下的连接问题 fix: 修改 APK 上传脚本中的服务器配置，使用 AWS 作为默认服务器 fix: 更新运维文档中的 SSH 连接信息，改为使用 AWS
+- 🐛  代码层检测 HTTPS 自动降级到同域相对路径，阻止 Mixed Content
+- 🐛  修复 HTTPS 下 Mixed Content 错误 - API/WS 请求被浏览器拦截
+- 🐛  更新文件引用路径，确保正确导入类型定义；优化构建脚本以自动接受新主机密钥
+- 🐛  修复服务参数初始化，确保默认值为空
+- 🐛  normalize APK filename to lowercase for consistency in build script
+- 🐛 feat: update dev script to kill processes on ports 3000 and 3001 before starting dev server
+
 ## [0.1.0] - 2026-07-28
 
-### 🎉 初始版本
-
-#### ✨ 新功能
-
-- **多交易所行情聚合** — 支持 Binance、OKX、Bybit、Bitget、Gate.io、MEXC 六大交易所实时行情
-- **每日行情分析** — 全市场振幅榜、涨幅榜、跌幅榜、十字星识别，自定义成交额过滤
-- **实盘订阅** — 实时追踪关注的交易对，自定义价格提醒
-- **合约持仓监控** — 多交易所合约持仓一览，开仓均价、盈亏、清算价实时追踪
-- **资产全景分析** — 5 分钟高频资产快照，资金/现货/合约多维度资产透视
-- **系统设置** — API Key 管理、K 线模式切换、数据筛选配置
-
-#### 🔧 技术架构
-
-- 前端: Next.js 16 (App Router) + TailwindCSS v4 + Recharts
+- 🎉 初始版本发布
+- 多交易所行情聚合 — Binance、OKX、Bybit、Bitget、Gate.io、MEXC 六大交易所实时行情
+- 每日行情分析 — 振幅榜/涨幅榜/跌幅榜/十字星识别，自定义成交额过滤
+- 实盘订阅 — 实时追踪关注的交易对，自定义价格提醒
+- 合约持仓监控 — 多交易所合约持仓一览，开仓均价/盈亏/清算价实时追踪
+- 资产全景分析 — 5 分钟高频资产快照，资金/现货/合约多维度资产透视
+- 系统设置 — API Key 管理、K 线模式切换、数据筛选配置
+- 前端: Next.js 16 + TailwindCSS v4 + Recharts
 - 后端: Hono.js + Drizzle ORM + PostgreSQL 16 + Redis 7
 - 实时推送: WebSocket + SSE 双通道
-- 移动端: Capacitor 8 Android 原生封装
-- 部署: Docker Compose + Caddy 自动 HTTPS
-
-#### 📱 Android App
-
-- Capacitor 封装的原生 Android 体验
-- 触控优化、安全区域适配
-- API Key AES-256-GCM 本地加密存储
-
-#### 🔒 安全
-
-- API Key 仅使用只读权限
-- AES-256-GCM 加密存储
-- JWT + Web3 钱包双认证
+- Android: Capacitor 8 原生封装，触控优化，安全区域适配
+- 安全: API Key AES-256-GCM 本地加密，仅只读权限

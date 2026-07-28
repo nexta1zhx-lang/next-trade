@@ -50,9 +50,8 @@ print(data[-1]['build'])
 " 2>/dev/null || echo "0")
 
 echo "============================================"
-echo " nextTrade 更新日志生成"
-echo " 上次版本: v${LAST_VERSION:-无} (build ${LAST_BUILD:-0})"
-echo " 上次日期: ${LAST_DATE:-无}"
+echo " nextTrade Changelog Generator"
+echo " Last: v${LAST_VERSION:-none} (build ${LAST_BUILD:-0}) / ${LAST_DATE:-none}"
 echo "============================================"
 
 # ─── 确定新版本号 ───────────────────────────────────────
@@ -65,7 +64,7 @@ if [ -z "$VERSION_INPUT" ]; then
     SUGGEST="0.1.0"
   fi
   echo ""
-  echo "请输入新版本号（默认: $SUGGEST）:"
+  echo "请输入新版本号 (默认: ${SUGGEST}):"
   read -r VERSION_INPUT
   VERSION_INPUT="${VERSION_INPUT:-$SUGGEST}"
 fi
@@ -81,7 +80,9 @@ if [ -n "$LAST_TAG" ]; then
   SINCE_REF="$LAST_TAG"
   echo "  → 参考 tag: $LAST_TAG"
 elif [ -n "$LAST_DATE" ]; then
-  SINCE_REF="--since=${LAST_DATE}"
+  # --since 不包含当天，提前一天确保覆盖
+  PREV_DATE=$(date -j -v-1d -f "%Y-%m-%d" "$LAST_DATE" "+%Y-%m-%d" 2>/dev/null || echo "$LAST_DATE")
+  SINCE_REF="--since=${PREV_DATE}"
 fi
 
 # 获取提交记录，按类型归类
@@ -146,42 +147,39 @@ fi
 NEW_BUILD=$((LAST_BUILD + 1))
 TODAY=$(date +%Y-%m-%d)
 
-# 生成 items 的 JSON 数组
-ITEMS_JSON=""
-for item in "${ITEMS[@]}"; do
-  # 转义特殊字符
-  escaped=$(echo "$item" | sed 's/"/\\"/g')
-  if [ -n "$ITEMS_JSON" ]; then
-    ITEMS_JSON="$ITEMS_JSON,"
-  fi
-  ITEMS_JSON="$ITEMS_JSON\"$escaped\""
-done
+# 将 items 写入临时文件，由 python3 读取（避免 shell 拼接 JSON 转义问题）
+ITEMS_TMP=$(mktemp)
+printf '%s\n' "${ITEMS[@]}" > "$ITEMS_TMP"
 
-# 用 python3 写入 JSON（保证格式正确）
 python3 -c "
-import json
+import json, sys
 
 with open('$CHANGELOG_FILE') as f:
     data = json.load(f)
+
+# 从临时文件读取 items
+with open('$ITEMS_TMP') as f:
+    items = [line.rstrip('\n') for line in f if line.strip()]
 
 # 自动模式下如果版本已存在，只更新 build/date，保留已有 items
 existing_idx = next((i for i, e in enumerate(data) if e['version'] == '$VERSION_INPUT'), -1)
 if existing_idx >= 0 and $AUTO_MODE:
     data[existing_idx]['build'] = $NEW_BUILD
     data[existing_idx]['date'] = '$TODAY'
-    # 不动 items，保留手动编辑的内容
 else:
     data.append({
         'version': '$VERSION_INPUT',
         'build': $NEW_BUILD,
         'date': '$TODAY',
-        'items': ${ITEMS_JSON}
+        'items': items
     })
 
 with open('$CHANGELOG_FILE', 'w') as f:
     json.dump(data, f, ensure_ascii=False, indent=2)
     f.write('\n')
 "
+
+rm -f "$ITEMS_TMP"
 
 echo ""
 echo "  ✓ 已写入 $CHANGELOG_FILE"
