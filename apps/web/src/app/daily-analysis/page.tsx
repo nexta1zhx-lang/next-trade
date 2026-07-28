@@ -340,7 +340,7 @@ export default function DailyAnalysisPage() {
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="搜索币种..."
-                    className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg pl-8 pr-3 py-2 md:py-1.5 text-xs text-gray-200
+                    className="w-full bg-[#0a0a0b] border border-gray-700 rounded-lg pl-8 pr-3 py-2 md:py-1.5 text-sm text-gray-200
                                placeholder:text-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
                   />
                 </div>
@@ -350,7 +350,7 @@ export default function DailyAnalysisPage() {
               <div className="flex px-3 gap-1 shrink-0">
                 <button
                   onClick={() => setActiveTab('fav')}
-                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 ${
+                  className={`flex-1 text-sm py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 ${
                     activeTab === 'fav'
                       ? 'bg-primary/15 text-primary font-medium'
                       : 'text-gray-500 hover:text-gray-300'
@@ -361,7 +361,7 @@ export default function DailyAnalysisPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('today')}
-                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                  className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${
                     activeTab === 'today'
                       ? 'bg-primary/15 text-primary font-medium'
                       : 'text-gray-500 hover:text-gray-300'
@@ -371,7 +371,7 @@ export default function DailyAnalysisPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('yesterday')}
-                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                  className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${
                     activeTab === 'yesterday'
                       ? 'bg-primary/15 text-primary font-medium'
                       : 'text-gray-500 hover:text-gray-300'
@@ -405,7 +405,7 @@ export default function DailyAnalysisPage() {
                       />
                     </button>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0">
+                  <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-xs text-gray-600 uppercase tracking-wider shrink-0">
                     <span className="w-5 shrink-0 text-center">#</span>
                     <span className="flex-1 flex items-center gap-1">
                       <span>币种</span>
@@ -436,7 +436,7 @@ export default function DailyAnalysisPage() {
 
               {/* 今日 Tab 列头 */}
               {activeTab === 'today' && (
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0">
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-xs text-gray-600 uppercase tracking-wider shrink-0">
                   <span className="w-5 shrink-0" />
                   <span className="flex-1 flex items-center gap-2">
                     <button
@@ -471,7 +471,7 @@ export default function DailyAnalysisPage() {
 
               {/* 关注 Tab 列头 */}
               {activeTab === 'fav' && (
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-[10px] text-gray-600 uppercase tracking-wider shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-800/50 text-xs text-gray-600 uppercase tracking-wider shrink-0" />
               )}
 
               {/* 列表内容 */}
@@ -497,7 +497,7 @@ export default function DailyAnalysisPage() {
                           return (
                             <div
                               key={item.symbol}
-                              className={`flex items-center gap-2 px-3 py-1.5 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
+                              className={`flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-800/30 cursor-pointer transition-colors ${
                                 sel
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
@@ -528,7 +528,7 @@ export default function DailyAnalysisPage() {
                                     <Crosshair className="w-2.5 h-2.5 text-yellow-400 shrink-0" />
                                   )}
                                 </span>
-                                <span className="text-gray-500 truncate text-[10px]">
+                                <span className="text-gray-500 truncate text-xs">
                                   {fmtVol(item.quoteVolume)}
                                 </span>
                               </span>
@@ -539,7 +539,7 @@ export default function DailyAnalysisPage() {
                                   {item.change >= 0 ? '+' : ''}
                                   {fmt(item.change)}%
                                 </span>
-                                <span className="text-gray-300 text-[10px]">
+                                <span className="text-gray-300 text-xs">
                                   {fmt(item.amplitude)}%
                                 </span>
                               </span>
@@ -647,7 +647,7 @@ export default function DailyAnalysisPage() {
                           return (
                             <div
                               key={binanceSymbol}
-                              className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
+                              className={`flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-800/30 cursor-pointer transition-colors ${
                                 sel
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
@@ -676,7 +676,7 @@ export default function DailyAnalysisPage() {
                                 <span className="font-medium text-gray-200 truncate">
                                   {base}
                                 </span>
-                                <span className="text-gray-500 truncate text-[10px]">
+                                <span className="text-gray-500 truncate text-xs">
                                   {fmtVol(Number(ticker.quoteVol))}
                                 </span>
                               </span>
@@ -686,7 +686,7 @@ export default function DailyAnalysisPage() {
                                   {fmtPrice(Number(ticker.price))}
                                 </span>
                                 <span
-                                  className={`text-[10px] ${
+                                  className={`text-xs ${
                                     Number(ticker.change) >= 0
                                       ? 'text-emerald-400'
                                       : 'text-red-400'
@@ -735,7 +735,7 @@ export default function DailyAnalysisPage() {
                                 )
                                 if (item) selectSymbol(item)
                               }}
-                              className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
+                              className={`flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-800/30 cursor-pointer transition-colors ${
                                 sel
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
@@ -767,7 +767,7 @@ export default function DailyAnalysisPage() {
                                 <span className="font-medium text-gray-200 truncate">
                                   {fav.base}
                                 </span>
-                                <span className="text-gray-500 truncate text-[10px]">
+                                <span className="text-gray-500 truncate text-xs">
                                   {ticker
                                     ? fmtVol(Number(ticker.quoteVol))
                                     : '--'}
@@ -775,7 +775,7 @@ export default function DailyAnalysisPage() {
                               </span>
                               {/* 近 10 天振幅榜前 10 次数 */}
                               <span
-                                className="text-[10px] text-gray-600 shrink-0 mr-2"
+                                className="text-xs text-gray-600 shrink-0 mr-2"
                                 title="近10天进入振幅榜前10的次数"
                               >
                                 {fav.top10Count != null
@@ -790,7 +790,7 @@ export default function DailyAnalysisPage() {
                                     : '--'}
                                 </span>
                                 <span
-                                  className={`text-[10px] ${
+                                  className={`text-xs ${
                                     ticker
                                       ? Number(ticker.change) >= 0
                                         ? 'text-emerald-400'
@@ -814,7 +814,7 @@ export default function DailyAnalysisPage() {
 
               {/* Footer */}
               {activeTab === 'yesterday' && (
-                <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 flex gap-2 shrink-0">
+                <div className="px-3 py-2 border-t border-gray-800/50 text-xs text-gray-600 flex gap-2 shrink-0">
                   <span>共 {data.totalSymbols} 个</span>
                   <span>筛选 {data.filteredCount} 个</span>
                   <span className="text-gray-500">
@@ -823,7 +823,7 @@ export default function DailyAnalysisPage() {
                 </div>
               )}
               {activeTab === 'today' && (
-                <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 flex gap-2 shrink-0">
+                <div className="px-3 py-2 border-t border-gray-800/50 text-xs text-gray-600 flex gap-2 shrink-0">
                   <span>
                     {
                       Object.keys(tickerMap).filter(s => {
@@ -841,7 +841,7 @@ export default function DailyAnalysisPage() {
                 </div>
               )}
               {activeTab === 'fav' && (
-                <div className="px-3 py-2 border-t border-gray-800/50 text-[10px] text-gray-600 shrink-0">
+                <div className="px-3 py-2 border-t border-gray-800/50 text-xs text-gray-600 shrink-0">
                   <span>关注 {favorites.length} 个</span>
                 </div>
               )}
