@@ -23,12 +23,26 @@ SERVER_APK_DIR="${SERVER_APK_DIR:-~/nextTrade/apk}"
 
 # 版本号（从 shared 包读取）
 VERSION=$(grep "APP_VERSION" packages/shared/src/version.ts | cut -d"'" -f2)
-BUILD_NUM=$(grep "APP_BUILD" packages/shared/src/version.ts | cut -d" " -f3)
+BUILD_NUM=$(grep "APP_BUILD" packages/shared/src/version.ts | cut -d" " -f5)
 
 # ─── 构建号自动递增 ────────────────────────────────────────
 BUILD_NUM=$((BUILD_NUM + 1))
 sed -i '' "s/^export const APP_BUILD = [0-9]*/export const APP_BUILD = $BUILD_NUM/" packages/shared/src/version.ts
 echo "  → 构建号: v${VERSION} (build ${BUILD_NUM})"
+
+# ─── 自动更新 changelog ──────────────────────────────────
+# 检查 changelog.json 是否已有此版本的条目，没有则从 git log 自动生成
+if ! python3 -c "
+import json
+with open('apk/changelog.json') as f:
+    data = json.load(f)
+exists = any(e['version'] == '$VERSION' for e in data)
+exit(0 if exists else 1)
+" 2>/dev/null; then
+  echo ""
+  echo "▶ 检测到新版本 v${VERSION}，自动生成更新日志..."
+  bash scripts/gen-changelog.sh --auto "$VERSION"
+fi
 
 MODE="production"  # production | development
 UPLOAD=true
@@ -47,10 +61,10 @@ done
 APP_NAME_LOWER=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]')
 if [ "$MODE" = "development" ]; then
   API_URL="http://192.168.31.130:3001"
-  APK_FILENAME="${APP_NAME_LOWER}-v${VERSION}-dev.apk"  # nexttrade-v0.1.0-dev.apk
+  APK_FILENAME="${APP_NAME_LOWER}-v${VERSION}-b${BUILD_NUM}-dev.apk"  # nexttrade-v0.1.0-b2-dev.apk
 else
   API_URL="https://bitcoooin.cn"
-  APK_FILENAME="${APP_NAME_LOWER}-v${VERSION}.apk"       # nexttrade-v0.1.0.apk
+  APK_FILENAME="${APP_NAME_LOWER}-v${VERSION}-b${BUILD_NUM}.apk"       # nexttrade-v0.1.0-b2.apk
 fi
 
 echo "============================================"
@@ -156,6 +170,10 @@ if [ "$SKIP_BUILD" = false ]; then
   "updateLog": "查看完整更新日志: https://bitcoooin.cn/about"
 }
 EOF
+  # 同时复制到 web public 目录，供前端动态获取最新版本
+  cp "$APK_DIR/versions.json" "$WEB_DIR/public/downloads/versions.json"
+  # 同步 changelog.json 供关于页面读取
+  cp "$APK_DIR/changelog.json" "$WEB_DIR/public/downloads/changelog.json"
   echo "  → 版本信息已写入: $APK_DIR/versions.json"
 else
   echo ""
@@ -201,8 +219,9 @@ fi
 
 echo ""
 echo "============================================"
-echo " 完成 ✓"
+echo " ✅ 构建完成"
 echo "============================================"
 echo ""
-echo "  APK: $APK_DIR/$APK_FILENAME"
+echo "  版本: v${VERSION} (build ${BUILD_NUM})"
+echo "  APK:  $APK_DIR/$APK_FILENAME"
 echo "  下载: https://bitcoooin.cn/downloads/$APK_FILENAME"

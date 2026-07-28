@@ -86,22 +86,13 @@ const ADVANTAGES = [
   {label: '语言', value: 'TypeScript 全栈（Monorepo）'}
 ]
 
-// ─── 更新日志 ───
-const CHANGELOG = [
-  {
-    version: '0.1.0',
-    date: '2026-07-28',
-    items: [
-      '🎉 初始版本发布',
-      '多交易所行情聚合与实时推送',
-      '每日行情分析（振幅榜/涨幅榜/十字星识别）',
-      '合约实盘多交易所持仓监控',
-      '资产全景 5 分钟高频快照',
-      'Web3 钱包 + 邮箱双认证登录',
-      'Android APK 原生 App 发布'
-    ]
-  }
-]
+// ─── 更新日志类型 ───
+interface ChangelogEntry {
+  version: string
+  build: number
+  date: string
+  items: string[]
+}
 
 // ─── 统计数字 ───
 const STATS = [
@@ -146,6 +137,16 @@ function FeatureCard({feature, index}: {feature: Feature; index: number}) {
 }
 
 function ChangelogSection() {
+  const [entries, setEntries] = useState<ChangelogEntry[]>([])
+  useEffect(() => {
+    fetch('/downloads/changelog.json')
+      .then(r => r.json())
+      .then(setEntries)
+      .catch(() => {})
+  }, [])
+
+  if (entries.length === 0) return null
+
   return (
     <div>
       <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
@@ -153,7 +154,7 @@ function ChangelogSection() {
         更新日志
       </h2>
       <div className="space-y-4">
-        {CHANGELOG.map(entry => (
+        {entries.map(entry => (
           <div
             key={entry.version}
             className="relative pl-6 border-l-2 border-border"
@@ -196,9 +197,18 @@ export default function IntroPage() {
     setMounted(true)
   }, [])
 
+  // 从 versions.json 获取最新 APK 版本
+  const [latestApk, setLatestApk] = useState('')
+  useEffect(() => {
+    fetch('/downloads/versions.json')
+      .then(r => r.json())
+      .then(v => setLatestApk(v.apkUrl))
+      .catch(() => {})
+  }, [])
+
   const apkUrl = isDev
     ? '/downloads/nexttrade-v0.1.0-dev.apk'
-    : '/downloads/nexttrade-v0.1.0.apk'
+    : latestApk || '/downloads/nexttrade-v0.1.0-b1.apk'
   const apkLabel = isDev ? '下载 Android APK（开发版）' : '下载 Android APK'
   return (
     <div className="min-h-screen bg-background text-foreground">
