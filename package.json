@@ -8,6 +8,13 @@
     "clean": "pnpm -r run clean",
     "kill": "lsof -ti:3000,3001 | xargs kill -9 2>/dev/null; echo 'ports 3000,3001 freed'",
     "db:push": "pnpm --filter @nexttrade/api run db:push",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:api": "bash scripts/deploy.sh api",
+    "deploy:web": "bash scripts/deploy.sh web",
+    "deploy:db": "bash scripts/deploy.sh --db-push",
+    "apk": "bash scripts/build-apk.sh",
+    "apk:dev": "bash scripts/build-apk.sh --dev",
+    "apk:upload": "bash scripts/build-apk.sh --no-upload",
     "docker-d": "docker compose up -d"
   },
   "engines": {

@@ -15,6 +15,26 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# ─── 智能路由 ─────────────────────────────────────────
+# 识别是否在目标部署服务器 (3.115.2.104) 上运行，
+# 如果不是则自动通过 SSH aws2 远程执行（带参数透传）
+# ─────────────────────────────────────────────────────
+if ! hostname -I 2>/dev/null | grep -q '3\.115\.2\.104'; then
+  echo "◉ 检测到非服务器环境，通过 SSH aws2 远程部署..."
+  echo "  参数: $*"
+  # 使用 printf '%q' 安全序列化参数（支持空格等特殊字符）
+  # 尝试几个常见路径找到项目目录
+  for REMOTE_DIR in "/home/ubuntu/nextTrade" "~/nextTrade" "/home/ec2-user/nextTrade"; do
+    if ssh aws2 "test -d $REMOTE_DIR" 2>/dev/null; then
+      ssh aws2 "cd $REMOTE_DIR && bash scripts/deploy.sh $(printf '%q ' "$@")"
+      exit $?
+    fi
+  done
+  echo "✗ 错误: 无法在服务器上找到 nextTrade 项目目录"
+  echo "  请修改脚本中的 REMOTE_DIR 路径，或手动 SSH 到服务器执行"
+  exit 1
+fi
+
 COMPOSE_FILE="docker-compose.prod.yml"
 SERVICE=""                # 可选: api / web
 DB_PUSH=false
