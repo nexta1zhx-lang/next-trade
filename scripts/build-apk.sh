@@ -124,6 +124,20 @@ if [ "$SKIP_BUILD" = false ]; then
   echo "  模式: $MODE"
   echo "  API URL: $NEXT_PUBLIC_API_URL"
 
+  # 预先复制 changelog.json 到 public，供 Next.js 静态构建打包到 out/
+  mkdir -p "$WEB_DIR/public/downloads"
+  cp "$APK_DIR/changelog.json" "$WEB_DIR/public/downloads/changelog.json"
+  # 预先生成 versions.json（APK 构建后再更新实际文件名）
+  cat > "$WEB_DIR/public/downloads/versions.json" << EOJ
+{
+  "latest": "${VERSION}",
+  "build": ${BUILD_NUM},
+  "apkUrl": "/downloads/${APK_FILENAME}",
+  "releaseDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "updateLog": "查看完整更新日志: https://bitcoooin.cn/about"
+}
+EOJ
+
   # 4a. Next.js 静态导出
   echo "  → Next.js 静态构建..."
   pnpm run build
