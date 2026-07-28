@@ -21,8 +21,7 @@ import {
 } from 'lucide-react'
 
 // ─── 版本信息 ───
-const APP_VERSION = '0.1.0'
-const APP_BUILD = 1
+import {APP_VERSION, APP_BUILD} from '@nexttrade/shared'
 
 // ─── 特性列表 ───
 interface Feature {
@@ -169,7 +168,7 @@ function ChangelogSection() {
               </span>
             </div>
             <ul className="space-y-1">
-              {entry.items.map((item, i) => (
+              {entry.items.slice(0, 5).map((item, i) => (
                 <li
                   key={i}
                   className="text-xs text-muted-foreground flex items-start gap-2"
@@ -178,6 +177,12 @@ function ChangelogSection() {
                   {item}
                 </li>
               ))}
+              {entry.items.length > 5 && (
+                <li className="text-xs text-gray-500 flex items-start gap-2">
+                  <span className="w-3 shrink-0 text-center">···</span>
+                  还有 {entry.items.length - 5} 条更新
+                </li>
+              )}
             </ul>
           </div>
         ))}
@@ -206,9 +211,7 @@ export default function IntroPage() {
       .catch(() => {})
   }, [])
 
-  const apkUrl = isDev
-    ? '/downloads/nexttrade-v0.1.0-dev.apk'
-    : latestApk || '/downloads/nexttrade-v0.1.0-b1.apk'
+  const apkUrl = isDev ? '/downloads/nexttrade-v0.1.0-dev.apk' : latestApk || ''
   const apkLabel = isDev ? '下载 Android APK（开发版）' : '下载 Android APK'
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -229,7 +232,7 @@ export default function IntroPage() {
               在线体验
             </a>
             <a
-              href={mounted ? apkUrl : '/downloads/nexttrade-v0.1.0.apk'}
+              href={mounted ? apkUrl : '#'}
               download
               className="px-3 py-1.5 text-xs bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
             >
@@ -264,7 +267,7 @@ export default function IntroPage() {
 
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <a
-              href={mounted ? apkUrl : '/downloads/nexttrade-v0.1.0.apk'}
+              href={mounted ? apkUrl : '#'}
               download
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
             >
@@ -341,7 +344,7 @@ export default function IntroPage() {
           </h2>
 
           <a
-            href={mounted ? apkUrl : '/downloads/nexttrade-v0.1.0.apk'}
+            href={mounted ? apkUrl : '#'}
             download
             className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
           >

@@ -31,16 +31,23 @@ sed -i '' "s/^export const APP_BUILD = [0-9]*/export const APP_BUILD = $BUILD_NU
 echo "  → 构建号: v${VERSION} (build ${BUILD_NUM})"
 
 # ─── 自动更新 changelog ──────────────────────────────────
-# 检查 changelog.json 是否已有此版本的条目，没有则从 git log 自动生成
-if ! python3 -c "
+# 使用最近的 tag（如有）检测新提交，有则更新更新日志
+LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+if [ -n "$LAST_TAG" ]; then
+  NEW_COMMITS=$(git log "${LAST_TAG}..HEAD" --oneline 2>/dev/null | wc -l | tr -d ' ')
+else
+  # 无 tag 时检查 changelog 最新日期以来的提交
+  LAST_CHANGELOG_DATE=$(python3 -c "
 import json
 with open('apk/changelog.json') as f:
     data = json.load(f)
-exists = any(e['version'] == '$VERSION' for e in data)
-exit(0 if exists else 1)
-" 2>/dev/null; then
+print(data[-1]['date'] if data else '')
+" 2>/dev/null || echo "")
+  NEW_COMMITS=$(git log --oneline --since="${LAST_CHANGELOG_DATE}" 2>/dev/null | wc -l | tr -d ' ')
+fi
+if [ -n "$NEW_COMMITS" ] && [ "$NEW_COMMITS" -gt 0 ]; then
   echo ""
-  echo "▶ 检测到新版本 v${VERSION}，自动生成更新日志..."
+  echo "▶ 检测到 ${NEW_COMMITS} 个新提交，更新更新日志..."
   bash scripts/gen-changelog.sh --auto "$VERSION"
 fi
 
@@ -114,20 +121,10 @@ if [ "$SKIP_BUILD" = false ]; then
   echo ""
   echo "▶ [4/5] 构建 Android APK..."
 
-  # 进入到 web 目录执行构建
-  cd "$WEB_DIR"
-
-  # 设置 Capacitor 构建环境变量
-  export BUILD_FOR_CAPACITOR=true
-  export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$API_URL}"
-
-  echo "  模式: $MODE"
-  echo "  API URL: $NEXT_PUBLIC_API_URL"
-
-  # 预先复制 changelog.json 到 public，供 Next.js 静态构建打包到 out/
+  # 预先复制 changelog.json 到 public（在 cd 到 web 目录之前执行，保持路径正确）
   mkdir -p "$WEB_DIR/public/downloads"
   cp "$APK_DIR/changelog.json" "$WEB_DIR/public/downloads/changelog.json"
-  # 预先生成 versions.json（APK 构建后再更新实际文件名）
+  # 预先生成 versions.json，供 Next.js 静态构建打包到 out/
   cat > "$WEB_DIR/public/downloads/versions.json" << EOJ
 {
   "latest": "${VERSION}",
@@ -137,6 +134,16 @@ if [ "$SKIP_BUILD" = false ]; then
   "updateLog": "查看完整更新日志: https://bitcoooin.cn/about"
 }
 EOJ
+
+  # 进入到 web 目录执行构建
+  cd "$WEB_DIR"
+
+  # 设置 Capacitor 构建环境变量
+  export BUILD_FOR_CAPACITOR=true
+  export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-$API_URL}"
+
+  echo "  模式: $MODE"
+  echo "  API URL: $NEXT_PUBLIC_API_URL"
 
   # 4a. Next.js 静态导出
   echo "  → Next.js 静态构建..."
@@ -239,3 +246,10 @@ echo ""
 echo "  版本: v${VERSION} (build ${BUILD_NUM})"
 echo "  APK:  $APK_DIR/$APK_FILENAME"
 echo "  下载: https://bitcoooin.cn/downloads/$APK_FILENAME"
+
+# ─── 自动打 git tag ─────────────────────────────────────
+TAG_NAME="v${VERSION}-b${BUILD_NUM}"
+if ! git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+  git tag "$TAG_NAME"
+  git push origin "$TAG_NAME" 2>/dev/null && echo "  → 已推送 tag: $TAG_NAME" || echo "  → 已创建本地 tag: $TAG_NAME（推送失败，请手动推送）"
+fi

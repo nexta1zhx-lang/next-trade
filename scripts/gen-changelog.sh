@@ -74,10 +74,12 @@ fi
 echo ""
 echo "▶ 分析 git 提交记录..."
 
-# 确定 since 参数（使用上次版本 tag 或日期）
+# 确定 since 参数（使用最近的 tag，没有则回退到日期）
 SINCE_REF=""
-if git rev-parse "v${LAST_VERSION}" >/dev/null 2>&1; then
-  SINCE_REF="v${LAST_VERSION}"
+LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+if [ -n "$LAST_TAG" ]; then
+  SINCE_REF="$LAST_TAG"
+  echo "  → 参考 tag: $LAST_TAG"
 elif [ -n "$LAST_DATE" ]; then
   SINCE_REF="--since=${LAST_DATE}"
 fi
@@ -162,12 +164,19 @@ import json
 with open('$CHANGELOG_FILE') as f:
     data = json.load(f)
 
-data.append({
-    'version': '$VERSION_INPUT',
-    'build': $NEW_BUILD,
-    'date': '$TODAY',
-    'items': ${ITEMS_JSON}
-})
+# 自动模式下如果版本已存在，只更新 build/date，保留已有 items
+existing_idx = next((i for i, e in enumerate(data) if e['version'] == '$VERSION_INPUT'), -1)
+if existing_idx >= 0 and $AUTO_MODE:
+    data[existing_idx]['build'] = $NEW_BUILD
+    data[existing_idx]['date'] = '$TODAY'
+    # 不动 items，保留手动编辑的内容
+else:
+    data.append({
+        'version': '$VERSION_INPUT',
+        'build': $NEW_BUILD,
+        'date': '$TODAY',
+        'items': ${ITEMS_JSON}
+    })
 
 with open('$CHANGELOG_FILE', 'w') as f:
     json.dump(data, f, ensure_ascii=False, indent=2)
