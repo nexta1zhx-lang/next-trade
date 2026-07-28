@@ -207,6 +207,12 @@ with open('CHANGELOG.md', 'w') as f:
 "
 
 echo "  ✓ 已写入 CHANGELOG.md"
+
+# ─── 同步 version.ts ────────────────────────────────────
+sed -i '' "s/^export const APP_VERSION = '.*'/export const APP_VERSION = '$VERSION_INPUT'/" packages/shared/src/version.ts
+sed -i '' "s/^export const APP_BUILD = [0-9]*/export const APP_BUILD = $NEW_BUILD/" packages/shared/src/version.ts
+echo "  → version.ts 已同步: v${VERSION_INPUT} (build ${NEW_BUILD})"
+
 echo ""
 echo "============================================"
 echo " 完成 ✅"
