@@ -85,6 +85,28 @@ export async function initConsumerGroup(): Promise<void> {
 
 type EventHandler = (event: StreamEvent) => Promise<void>
 
+// 背压监控：当 pending 消息超过此阈值时暂停消费
+const BACKPRESSURE_THRESHOLD = 10_000
+// 背压恢复后等待的轮次数
+const BACKPRESSURE_RECOVERY_ROUNDS = 3
+
+let consecutiveEmptyReads = 0
+
+async function checkBackpressure(r: import('ioredis').Redis): Promise<boolean> {
+  try {
+    const info = (await r.xinfo('STREAM', STREAM_KEY)) as any[]
+    const length = info?.find((e: any) => e[0] === 'length')?.[1] ?? 0
+    if (length > BACKPRESSURE_THRESHOLD) {
+      console.warn(
+        `[eventStream] 背压警告: Stream 堆积 ${length} 条(阈值 ${BACKPRESSURE_THRESHOLD})，暂停消费 10s`
+      )
+      await new Promise(r => setTimeout(r, 10_000))
+      return true // 已等待，继续
+    }
+  } catch {}
+  return false
+}
+
 export async function consumeEvents(
   handler: EventHandler,
   batchSize = 50,
@@ -94,6 +116,12 @@ export async function consumeEvents(
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
+      // 背压检查：每 10 轮空读检查一次 pending 数量
+      if (consecutiveEmptyReads > 0 && consecutiveEmptyReads % 10 === 0) {
+        const backpressured = await checkBackpressure(r)
+        if (backpressured) continue
+      }
+
       const results = (await r.xreadgroup(
         'GROUP',
         CONSUMER_GROUP,
@@ -107,9 +135,19 @@ export async function consumeEvents(
         '>'
       )) as [string, [string, string[]][]][] | null
 
-      if (!results) continue
+      if (!results) {
+        consecutiveEmptyReads++
+        continue
+      }
+      consecutiveEmptyReads = 0
 
       for (const [, messages] of results) {
+        // 如果一次拉取超过 80% batchSize，说明积压严重，动态减小 batchSize
+        const currentBatchSize =
+          messages.length > batchSize * 0.8 && batchSize > 10
+            ? Math.max(10, Math.floor(batchSize / 2))
+            : Math.min(50, batchSize + 5)
+
         for (const [id, fields] of messages) {
           const jsonIdx = fields.indexOf('json')
           if (jsonIdx < 0) continue

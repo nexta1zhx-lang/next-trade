@@ -1,6 +1,6 @@
 'use client'
 
-import {useState, useEffect, useCallback} from 'react'
+import {useState, useEffect, useCallback, useRef} from 'react'
 import {
   TrendingUp,
   Search,
@@ -105,70 +105,110 @@ export default function FuturesPage() {
   const [sDate, setSDate] = useState(d30.toISOString().slice(0, 10))
   const [eDate, setEDate] = useState(today.toISOString().slice(0, 10))
 
-  usePositionWs(() => {
-    loadAll()
-    loadHistory()
-  }, !!selectedKeyId)
+  // ─── 竞态安全：跟踪最新的请求 Key，过时响应直接丢弃 ───
+  const fetchKeyRef = useRef<number | null>(null)
+  // ─── 标记是否已初始化（避免首次 Key 加载覆盖用户切换 + 重复请求） ───
+  const initializedRef = useRef(false)
+  // ─── 用 ref 保持最新的 loadAll/loadHistory 引用，供 usePositionWs 使用 ───
+  const loadAllRef = useRef<() => Promise<void>>(async () => {})
+  const loadHistoryRef = useRef<(page?: number) => Promise<void>>(
+    async () => {}
+  )
 
+  // ─── 首次挂载时拉取 Key 列表，选中第一个 Key（让 useEffect 自动加载数据） ───
+  useEffect(() => {
+    api
+      .listApiKeys()
+      .then((rawKeys: any) => {
+        const bk = (rawKeys ?? []).filter(
+          (k: any) => k.exchange === 'binance' && k.status === 'ACTIVE'
+        )
+        if (!bk.length) {
+          setError('请先绑定 Binance API Key')
+          setLoading(false)
+          setKeys([])
+          return
+        }
+        const kl = bk.map((k: any) => ({
+          id: k.id,
+          label: k.label || `Key #${k.id}`
+        }))
+        setKeys(kl)
+
+        // 只在用户尚未手动选择时才自动选中第一个 Key
+        if (!initializedRef.current) {
+          initializedRef.current = true
+          setSelectedKeyId(kl[0].id)
+        }
+      })
+      .catch((err: Error) => {
+        console.error('[futures] 加载 Key 列表失败:', err.message)
+        setError('加载 API Key 失败，请检查网络连接')
+        setLoading(false)
+      })
+  }, [])
+
+  // ─── selectedKeyId 变化时加载数据 ───
   const loadAll = useCallback(async () => {
+    const kid = selectedKeyId
+    if (!kid) return
+    // 记录当前请求的 Key，用于后续丢弃过时响应
+    fetchKeyRef.current = kid
     setLoading(true)
     setError('')
     try {
-      const rawKeys = (await api.listApiKeys()) ?? []
-      const bk = rawKeys.filter(
-        (k: any) => k.exchange === 'binance' && k.status === 'ACTIVE'
-      )
-      if (!bk.length) {
-        setError('请先绑定 Binance API Key')
-        setLoading(false)
-        return
-      }
-      const kl = bk.map((k: any) => ({
-        id: k.id,
-        label: k.label || `Key #${k.id}`
-      }))
-      setKeys(kl)
-      const kid =
-        selectedKeyId && kl.some((k: any) => k.id === selectedKeyId)
-          ? selectedKeyId
-          : kl[0].id
-      setSelectedKeyId(kid)
       const [pd, sd] = await Promise.all([
         api.getOpenPositions(kid),
         api.getPositionSummary({keyId: kid})
       ])
+      // ⚠️ 竞态检查：如果 selectedKeyId 在此期间变了，丢弃本次结果
+      if (fetchKeyRef.current !== kid) return
       setOpenPositions((pd as any)[kid]?.openPositions ?? [])
       setSummary(sd)
     } catch (e: any) {
+      if (fetchKeyRef.current !== kid) return
       setError(e.message)
     }
-    setLoading(false)
+    if (fetchKeyRef.current === kid) setLoading(false)
   }, [selectedKeyId])
 
   const loadHistory = useCallback(
     async (page = 1) => {
-      if (!selectedKeyId) return
+      const kid = selectedKeyId
+      if (!kid) return
       try {
         const d = await api.getPositionHistory({
-          keyId: selectedKeyId,
+          keyId: kid,
           symbol: hisSym || undefined,
           startDate: sDate || undefined,
           endDate: eDate || undefined,
           page,
           pageSize: 50
         })
+        // 竞态检查
+        if (fetchKeyRef.current !== kid) return
         setHistory(d as any)
       } catch {}
     },
     [selectedKeyId, hisSym, sDate, eDate]
   )
 
+  // ─── 维护 ref 引用，供 WS 回调使用 ───
+  loadAllRef.current = loadAll
+  loadHistoryRef.current = loadHistory
+
+  usePositionWs(() => {
+    loadAllRef.current()
+    loadHistoryRef.current()
+  }, !!selectedKeyId)
+
+  // ─── selectedKeyId 变化时触发加载 ───
   useEffect(() => {
-    loadAll()
-  }, [loadAll])
+    if (selectedKeyId) loadAll()
+  }, [selectedKeyId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (tab === 'history') loadHistory()
-  }, [tab, loadHistory])
+    if (tab === 'history' && selectedKeyId) loadHistory()
+  }, [tab, selectedKeyId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const openDetail = async (id: number) => {
     try {

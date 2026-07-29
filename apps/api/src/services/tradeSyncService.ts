@@ -232,17 +232,33 @@ async function asyncExportTrades(
     return -1
   }
 
-  // 3. 下载 ZIP
+  // 3. 下载 ZIP（带大小检查，避免 OOM）
   const zipRes = await fetch(url)
   if (!zipRes.ok) {
     console.warn('[tradeSync] ZIP 下载失败 HTTP ' + zipRes.status)
     return -1
   }
+
+  // 检查 ZIP 大小，超过 200MB 则拒绝（防止 OOM）
+  const contentLength = parseInt(
+    zipRes.headers.get('Content-Length') ?? '0',
+    10
+  )
+  const MAX_ZIP_SIZE = 200 * 1024 * 1024 // 200MB
+  if (contentLength > MAX_ZIP_SIZE) {
+    console.warn(
+      `[tradeSync] ZIP 过大 (${(contentLength / 1024 / 1024).toFixed(1)}MB)，降级到 REST 轮询`
+    )
+    return -1
+  }
+
   const zipBuf = Buffer.from(await zipRes.arrayBuffer())
 
   // 4. 解析 ZIP → CSV
   const zip = new AdmZip(zipBuf)
   const entries = zip.getEntries()
+  // 释放 zipBuf 引用，让 GC 可以回收
+  ;(zipBuf as any) = null
   let totalInserted = 0
 
   for (const entry of entries) {
@@ -275,7 +291,7 @@ async function asyncExportTrades(
       continue
     }
 
-    // 逐行解析并入库
+    // 逐行解析并入库（lines 处理完即释放）
     for (let li = 1; li < lines.length; li++) {
       const row = parseCsvLine(lines[li])
       if (row.length < header.length) continue

@@ -46,6 +46,9 @@ let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let subscribers = new Set<TickerCallback>()
 
+// 最大订阅者数，超过后拒绝新订阅（防止内存泄漏）
+const MAX_SUBSCRIBERS = 100
+
 const WS_URL = 'wss://fstream.binance.com/market/ws/!miniTicker@arr'
 const RECONNECT_DELAY = 5000
 
@@ -198,6 +201,10 @@ export function stopBinanceTicker() {
 
 /** 订阅 ticker 推送 */
 export function subscribeTicker(cb: TickerCallback): () => void {
+  if (subscribers.size >= MAX_SUBSCRIBERS) {
+    console.warn(`[wsTicker] 订阅者已达上限(${MAX_SUBSCRIBERS})，拒绝新订阅`)
+    return () => {}
+  }
   subscribers.add(cb)
   return () => {
     subscribers.delete(cb)

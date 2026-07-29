@@ -22,6 +22,9 @@ import type {WebSocket as WsClient} from 'ws'
 const INACTIVITY_TIMEOUT = 30_000
 const EVENTS = 'ORDER_TRADE_UPDATE/ACCOUNT_UPDATE'
 
+// 客户端心跳检测间隔（每 15s 检查一次僵尸连接）
+const HEARTBEAT_INTERVAL = 15_000
+
 // ─── 状态 ───
 
 interface KeyState {
@@ -30,6 +33,8 @@ interface KeyState {
   keepAliveTimer: ReturnType<typeof setInterval> | null
   clients: Set<WsClient>
   cleanupTimer: ReturnType<typeof setTimeout> | null
+  /** 心跳检测定时器，定期清理僵尸连接 */
+  heartbeatTimer: ReturnType<typeof setInterval> | null
 }
 
 const keyMap = new Map<number, KeyState>()
@@ -128,17 +133,34 @@ function handleEvent(
       feeUsdt: String(o.n ?? '0'),
       isLiquidation: o.R === true && Math.abs(parseFloat(o.rp ?? '0')) > 50,
       executedAt: Number(o.T || msg.E)
-    }).catch(() => {})
+    }).catch(err => {
+      console.error('[wsIngestor] publishTrade 失败:', (err as Error).message)
+    })
 
-    publishPositionUpdate(apiKeyId).catch(() => {})
+    publishPositionUpdate(apiKeyId).catch(err => {
+      console.error(
+        '[wsIngestor] publishPositionUpdate 失败:',
+        (err as Error).message
+      )
+    })
   } else if (msg.e === 'ACCOUNT_UPDATE') {
     const a = msg.a
     if (a?.P?.length) {
-      publishPositionUpdate(apiKeyId).catch(() => {})
+      publishPositionUpdate(apiKeyId).catch(err => {
+        console.error(
+          '[wsIngestor] ACCOUNT_UPDATE publishPositionUpdate 失败:',
+          (err as Error).message
+        )
+      })
     }
   } else if (msg.e === 'listenKeyExpired') {
     cleanup(apiKeyId)
-    ensureConn(apiKeyId).catch(() => {})
+    ensureConn(apiKeyId).catch(err => {
+      console.error(
+        '[wsIngestor] listenKeyExpired 重连失败:',
+        (err as Error).message
+      )
+    })
   }
 }
 
@@ -181,13 +203,30 @@ async function ensureConn(apiKeyId: number): Promise<KeyState> {
           key.apiKey,
           'PUT',
           `/fapi/v1/listenKey?listenKey=${listenKey}`
-        ).catch(() => {})
+        ).catch(err => {
+          console.error(
+            '[wsIngestor] keepAlive 刷新失败:',
+            (err as Error).message
+          )
+        })
       },
       50 * 60 * 1000
     ),
     clients: new Set(),
-    cleanupTimer: null
+    cleanupTimer: null,
+    heartbeatTimer: null
   }
+  // heartbeatTimer 在 ks 赋值后设置，回调内才能引用 ks
+  ks.heartbeatTimer = setInterval(() => {
+    for (const c of ks.clients) {
+      if (
+        c.readyState !== WebSocket.OPEN &&
+        c.readyState !== WebSocket.CONNECTING
+      ) {
+        ks.clients.delete(c)
+      }
+    }
+  }, HEARTBEAT_INTERVAL)
   keyMap.set(apiKeyId, ks)
   lkToId.set(listenKey, apiKeyId)
   reconnectSharedWs()
@@ -197,13 +236,26 @@ async function ensureConn(apiKeyId: number): Promise<KeyState> {
 function cleanup(apiKeyId: number): void {
   const ks = keyMap.get(apiKeyId)
   if (!ks || ks.clients.size > 0) return
-  if (ks.keepAliveTimer) clearInterval(ks.keepAliveTimer)
+  if (ks.keepAliveTimer) {
+    clearInterval(ks.keepAliveTimer)
+    ks.keepAliveTimer = null
+  }
+  if (ks.heartbeatTimer) {
+    clearInterval(ks.heartbeatTimer)
+    ks.heartbeatTimer = null
+  }
+  if (ks.cleanupTimer) {
+    clearTimeout(ks.cleanupTimer)
+    ks.cleanupTimer = null
+  }
   lkToId.delete(ks.listenKey)
   apiCall(
     ks.apiKeyRaw,
     'DELETE',
     `/fapi/v1/listenKey?listenKey=${ks.listenKey}`
-  ).catch(() => {})
+  ).catch(err => {
+    console.error('[wsIngestor] 删除 listenKey 失败:', (err as Error).message)
+  })
   keyMap.delete(apiKeyId)
   reconnectSharedWs()
 }
@@ -221,6 +273,8 @@ export async function subscribeClient(
       clearTimeout(ks.cleanupTimer)
       ks.cleanupTimer = null
     }
+    // 客户端断连时自动清理
+    ws.on('close', () => unsubscribeClient(apiKeyId, ws))
     return true
   } catch {
     return false

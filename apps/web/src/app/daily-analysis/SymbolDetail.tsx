@@ -462,29 +462,7 @@ export default function SymbolDetail({
     setReviewTags(r.tags || [])
   }
 
-  // 移动端左滑返回（绑定到父容器）
-  const touchStartRef = useRef<number | null>(null)
   const containerRef2 = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const el = containerRef2.current
-    if (!el) return
-    const onTouchStart = (e: TouchEvent) => {
-      touchStartRef.current = e.touches[0].clientX
-    }
-    const onTouchEnd = (e: TouchEvent) => {
-      const start = touchStartRef.current
-      if (start === null) return
-      const dx = e.changedTouches[0].clientX - start
-      if (dx > 80) onClose()
-      touchStartRef.current = null
-    }
-    el.addEventListener('touchstart', onTouchStart)
-    el.addEventListener('touchend', onTouchEnd)
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart)
-      el.removeEventListener('touchend', onTouchEnd)
-    }
-  }, [onClose])
 
   // 展开/缩小时重新调整图表尺寸并自适应
   useEffect(() => {
@@ -497,14 +475,17 @@ export default function SymbolDetail({
       if (candleSeries) {
         const data = candleSeries.data()
         if (data.length > 0) {
-          const w = parent?.clientWidth ?? 800
-          const visibleCount = Math.max(20, Math.floor(w / 8))
+          // 默认显示 120 根 K 线，上下边距对齐
+          const visibleCount = 120
           const last = data[data.length - 1].time as number
           const first = data[Math.max(0, data.length - visibleCount)]
             .time as number
           chart
             .timeScale()
             .setVisibleRange({from: first as any, to: last as any})
+          chart.priceScale('right').applyOptions({
+            scaleMargins: {top: 0.08, bottom: 0.08}
+          })
         }
       }
     }, 100)

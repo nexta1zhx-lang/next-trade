@@ -114,14 +114,16 @@ export default function KlineChart({
     if (!chart || !series) return
     const data = series.data()
     if (data.length === 0) return
-    // 根据容器宽度动态计算可见 K 线数量（每根约 8px 宽度）
-    const containerW = containerRef.current?.clientWidth ?? 800
-    const visibleCount = Math.max(20, Math.floor(containerW / 8))
+    // 默认显示 120 根 K 线，上下边距对齐
+    const visibleCount = 120
     const last = data[data.length - 1].time as number
     const first = data[Math.max(0, data.length - visibleCount)].time as number
     chart.timeScale().setVisibleRange({
       from: first as any,
       to: last as any
+    })
+    chart.priceScale('right').applyOptions({
+      scaleMargins: {top: 0.08, bottom: 0.08}
     })
   }, [])
 
@@ -205,7 +207,7 @@ export default function KlineChart({
       },
       rightPriceScale: {
         borderVisible: false,
-        scaleMargins: {top: 0.08, bottom: 0.1},
+        scaleMargins: {top: 0.08, bottom: 0.08},
         minimumWidth: 60
       },
       localization: {

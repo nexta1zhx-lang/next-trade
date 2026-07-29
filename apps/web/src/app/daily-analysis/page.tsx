@@ -350,18 +350,18 @@ export default function DailyAnalysisPage() {
               <div className="flex px-3 gap-1 shrink-0">
                 <button
                   onClick={() => setActiveTab('fav')}
-                  className={`flex-1 text-sm py-1.5 rounded-md transition-colors flex items-center justify-center gap-1 ${
+                  className={`flex-1 text-xs py-1 rounded-md transition-colors flex items-center justify-center gap-1 ${
                     activeTab === 'fav'
                       ? 'bg-primary/15 text-primary font-medium'
                       : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  <Star className="w-3 h-3" />
+                  <Star className="w-2.5 h-2.5" />
                   关注
                 </button>
                 <button
                   onClick={() => setActiveTab('today')}
-                  className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${
+                  className={`flex-1 text-xs py-1 rounded-md transition-colors ${
                     activeTab === 'today'
                       ? 'bg-primary/15 text-primary font-medium'
                       : 'text-gray-500 hover:text-gray-300'
@@ -371,7 +371,7 @@ export default function DailyAnalysisPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('yesterday')}
-                  className={`flex-1 text-sm py-1.5 rounded-md transition-colors ${
+                  className={`flex-1 text-xs py-1 rounded-md transition-colors ${
                     activeTab === 'yesterday'
                       ? 'bg-primary/15 text-primary font-medium'
                       : 'text-gray-500 hover:text-gray-300'
@@ -497,7 +497,7 @@ export default function DailyAnalysisPage() {
                           return (
                             <div
                               key={item.symbol}
-                              className={`flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-800/30 cursor-pointer transition-colors ${
+                              className={`flex items-center gap-1.5 px-2 py-1.5 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
                                 sel
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
@@ -506,7 +506,7 @@ export default function DailyAnalysisPage() {
                             >
                               {/* 序号 / 收藏图标 */}
                               <span
-                                className="w-5 shrink-0 text-center"
+                                className="w-4 shrink-0 text-center"
                                 onClick={e => {
                                   if (!loggedIn) return
                                   e.stopPropagation()
@@ -514,9 +514,9 @@ export default function DailyAnalysisPage() {
                                 }}
                               >
                                 {loggedIn && isFav ? (
-                                  <Star className="w-3 h-3 text-yellow-400 fill-yellow-400 mx-auto" />
+                                  <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400 mx-auto" />
                                 ) : loggedIn ? (
-                                  <Star className="w-3 h-3 text-gray-500 hover:text-yellow-400 mx-auto transition-colors" />
+                                  <Star className="w-2.5 h-2.5 text-gray-500 hover:text-yellow-400 mx-auto transition-colors" />
                                 ) : (
                                   <span className="text-gray-600">{i + 1}</span>
                                 )}
@@ -525,10 +525,10 @@ export default function DailyAnalysisPage() {
                                 <span className="font-medium text-gray-200 truncate flex items-center gap-1">
                                   {item.base}
                                   {item.isDoji && (
-                                    <Crosshair className="w-2.5 h-2.5 text-yellow-400 shrink-0" />
+                                    <Crosshair className="w-2 h-2 text-yellow-400 shrink-0" />
                                   )}
                                 </span>
-                                <span className="text-gray-500 truncate text-xs">
+                                <span className="text-gray-500 truncate text-[10px]">
                                   {fmtVol(item.quoteVolume)}
                                 </span>
                               </span>
@@ -539,7 +539,7 @@ export default function DailyAnalysisPage() {
                                   {item.change >= 0 ? '+' : ''}
                                   {fmt(item.change)}%
                                 </span>
-                                <span className="text-gray-300 text-xs">
+                                <span className="text-gray-300 text-[10px]">
                                   {fmt(item.amplitude)}%
                                 </span>
                               </span>
@@ -647,7 +647,7 @@ export default function DailyAnalysisPage() {
                           return (
                             <div
                               key={binanceSymbol}
-                              className={`flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-800/30 cursor-pointer transition-colors ${
+                              className={`flex items-center gap-1.5 px-2 py-1.5 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
                                 sel
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
@@ -656,7 +656,7 @@ export default function DailyAnalysisPage() {
                             >
                               {/* 收藏图标 */}
                               <span
-                                className="w-5 shrink-0 text-center"
+                                className="w-4 shrink-0 text-center"
                                 onClick={e => {
                                   if (!loggedIn) return
                                   e.stopPropagation()
@@ -664,11 +664,11 @@ export default function DailyAnalysisPage() {
                                 }}
                               >
                                 {loggedIn && isFav ? (
-                                  <Star className="w-3 h-3 text-yellow-400 fill-yellow-400 mx-auto" />
+                                  <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400 mx-auto" />
                                 ) : loggedIn ? (
-                                  <Star className="w-3 h-3 text-gray-500 hover:text-yellow-400 mx-auto transition-colors" />
+                                  <Star className="w-2.5 h-2.5 text-gray-500 hover:text-yellow-400 mx-auto transition-colors" />
                                 ) : (
-                                  <span className="w-3 h-3" />
+                                  <span className="w-2.5 h-2.5" />
                                 )}
                               </span>
                               {/* 币种 + 量 */}
@@ -676,7 +676,7 @@ export default function DailyAnalysisPage() {
                                 <span className="font-medium text-gray-200 truncate">
                                   {base}
                                 </span>
-                                <span className="text-gray-500 truncate text-xs">
+                                <span className="text-gray-500 truncate text-[10px]">
                                   {fmtVol(Number(ticker.quoteVol))}
                                 </span>
                               </span>
@@ -686,7 +686,7 @@ export default function DailyAnalysisPage() {
                                   {fmtPrice(Number(ticker.price))}
                                 </span>
                                 <span
-                                  className={`text-xs ${
+                                  className={`text-[10px] ${
                                     Number(ticker.change) >= 0
                                       ? 'text-emerald-400'
                                       : 'text-red-400'
@@ -735,14 +735,14 @@ export default function DailyAnalysisPage() {
                                 )
                                 if (item) selectSymbol(item)
                               }}
-                              className={`flex items-center gap-2 px-3 py-2 text-sm border-b border-gray-800/30 cursor-pointer transition-colors ${
+                              className={`flex items-center gap-1.5 px-2 py-1.5 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
                                 sel
                                   ? 'bg-primary/10 border-l-2 border-l-primary'
                                   : 'hover:bg-gray-800/30'
                               }`}
                             >
                               <span
-                                className="w-5 shrink-0 text-center cursor-pointer"
+                                className="w-4 shrink-0 text-center cursor-pointer"
                                 onClick={e => {
                                   e.stopPropagation()
                                   const item = {
@@ -760,14 +760,14 @@ export default function DailyAnalysisPage() {
                                   toggleFavorite(item)
                                 }}
                               >
-                                <Star className="w-3 h-3 text-yellow-400 fill-yellow-400 mx-auto hover:opacity-70 transition-opacity" />
+                                <Star className="w-2.5 h-2.5 text-yellow-400 fill-yellow-400 mx-auto hover:opacity-70 transition-opacity" />
                               </span>
                               {/* 币种 + 量 */}
                               <span className="flex-1 flex flex-col min-w-0 leading-tight">
                                 <span className="font-medium text-gray-200 truncate">
                                   {fav.base}
                                 </span>
-                                <span className="text-gray-500 truncate text-xs">
+                                <span className="text-gray-500 truncate text-[10px]">
                                   {ticker
                                     ? fmtVol(Number(ticker.quoteVol))
                                     : '--'}
@@ -775,7 +775,7 @@ export default function DailyAnalysisPage() {
                               </span>
                               {/* 近 10 天振幅榜前 10 次数 */}
                               <span
-                                className="text-xs text-gray-600 shrink-0 mr-2"
+                                className="text-[10px] text-gray-600 shrink-0 mr-2"
                                 title="近10天进入振幅榜前10的次数"
                               >
                                 {fav.top10Count != null
@@ -790,7 +790,7 @@ export default function DailyAnalysisPage() {
                                     : '--'}
                                 </span>
                                 <span
-                                  className={`text-xs ${
+                                  className={`text-[10px] ${
                                     ticker
                                       ? Number(ticker.change) >= 0
                                         ? 'text-emerald-400'

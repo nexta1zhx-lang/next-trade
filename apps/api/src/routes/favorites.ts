@@ -73,7 +73,10 @@ router.get('/', async c => {
 const createSchema = z.object({
   symbol: z.string().min(1).max(30),
   base: z.string().min(1).max(20),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD')
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD')
+    .optional()
 })
 
 router.post('/', zValidator('json', createSchema), async c => {
