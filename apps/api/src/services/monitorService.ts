@@ -43,24 +43,43 @@ export async function fetchNodeMetrics(): Promise<{
     const swapFree = get('node_memory_SwapFree_bytes')
     const swapPercent = swapTotal > 0 ? ((swapTotal - swapFree) / swapTotal) * 100 : 0
 
-    // CPU (idle 占比)
-    const cpuIdle = get('node_cpu_seconds_total{mode="idle"}')
-    // 用 node_load1 近似 CPU 使用率
+    // CPU 使用率（用 load1 / 核心数 估算）
     const load1 = get('node_load1')
-    const cpuCount = get('node_nprocs')
-    const cpuPercent = cpuCount > 0 ? Math.min(100, (load1 / cpuCount) * 100) : 0
+    // 从 node_cpu 指标算核心数
+    const cpuMatches = text.match(/^node_cpu_seconds_total{cpu="(\d+)"/gm)
+    const cpuCount = cpuMatches ? new Set(cpuMatches.map(m => m.match(/"(\d+)"/)?.[1])).size : 1
+    const cpuPercent = cpuCount > 0 ? Math.min(100, Math.round((load1 / cpuCount) * 10000) / 100) : 0
 
     // 磁盘（根分区使用率）
     let diskPercent = 0
-    const diskSize = get('node_filesystem_size_bytes{mountpoint="/"}')
-    const diskAvail = get('node_filesystem_avail_bytes{mountpoint="/"}')
+    const lines = text.split('\n')
+    let diskSize = 0, diskAvail = 0
+    for (const line of lines) {
+      if (line.startsWith('node_filesystem_size_bytes') && line.includes('mountpoint="/"') && !line.includes('device="tmpfs"')) {
+        const m = line.match(/[\d.eE+-]+$/)
+        if (m) diskSize = parseFloat(m[0])
+      }
+      if (line.startsWith('node_filesystem_avail_bytes') && line.includes('mountpoint="/"') && !line.includes('device="tmpfs"')) {
+        const m = line.match(/[\d.eE+-]+$/)
+        if (m) diskAvail = parseFloat(m[0])
+      }
+    }
     if (diskSize > 0) {
       diskPercent = Math.round(((diskSize - diskAvail) / diskSize) * 10000) / 100
     }
 
-    // 网络（取所有接口总和）
-    const netRx = get('node_network_receive_bytes_total')
-    const netTx = get('node_network_transmit_bytes_total')
+    // 网络（取所有接口总和，排除 lo）
+    let netRx = 0, netTx = 0
+    for (const line of lines) {
+      if (line.startsWith('node_network_receive_bytes_total') && !line.includes('device="lo"')) {
+        const m = line.match(/[\d.eE+-]+$/)
+        if (m) netRx += parseFloat(m[0])
+      }
+      if (line.startsWith('node_network_transmit_bytes_total') && !line.includes('device="lo"')) {
+        const m = line.match(/[\d.eE+-]+$/)
+        if (m) netTx += parseFloat(m[0])
+      }
+    }
 
     return {
       cpuPercent: Math.round(cpuPercent * 100) / 100,
