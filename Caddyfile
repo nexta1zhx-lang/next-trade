@@ -1,5 +1,15 @@
 bitcoooin.cn {
     # 自动 HTTPS（Caddy 自动申请和续期 SSL 证书）
+    
+    # 关闭访问日志（避免内存积累 + Via 头膨胀）
+    log {
+        output discard
+    }
+
+    # 清理请求/响应中的 Via 头，防止代理链无限累加
+    header / {
+        -Via
+    }
 
     # APK 等静态文件下载
     handle_path /downloads/* {
@@ -29,7 +39,7 @@ bitcoooin.cn {
         reverse_proxy api:3001
     }
 
-    # 前端所有请求转发到 Next.js
+    # 前端静态文件（由 web 容器的 busybox httpd 提供）
     handle {
         reverse_proxy web:3000
     }
