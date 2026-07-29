@@ -6,7 +6,7 @@
  */
 
 import {Hono} from 'hono'
-import {fetchNodeMetrics, queryMetrics} from '../services/monitorService.js'
+import {fetchNodeMetrics, queryMetrics, getDockerStats} from '../services/monitorService.js'
 
 const router = new Hono()
 
@@ -30,6 +30,15 @@ router.get('/history', async c => {
   const hours = Math.min(168, Math.max(1, parseInt(c.req.query('hours') ?? '24')))
   const data = await queryMetrics(hours)
   return c.json({success: true, data})
+})
+
+// ═══════════════════════════════════════════
+// GET /api/monitor/docker — Docker 容器统计
+// ═══════════════════════════════════════════
+
+router.get('/docker', async c => {
+  const containers = await getDockerStats()
+  return c.json({success: true, data: containers})
 })
 
 export {router as monitorRouter}

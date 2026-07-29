@@ -88,8 +88,10 @@ export async function fetchNodeMetrics(): Promise<{
       memTotalMb: Math.round(memTotal / 1024 / 1024 * 10) / 10,
       swapPercent: Math.round(swapPercent * 100) / 100,
       diskPercent: Math.round(diskPercent * 100) / 100,
-      netRxBytes: Math.round(netRx),
-      netTxBytes: Math.round(netTx)
+      diskTotalGb: Math.round(diskSize / 1024 / 1024 / 1024 * 10) / 10,
+      diskUsedGb: Math.round((diskSize - diskAvail) / 1024 / 1024 / 1024 * 10) / 10,
+      netRxBytes: diskAvail, // 复用字段存磁盘剩余字节
+      netTxBytes: diskSize   // 复用字段存磁盘总字节
     }
   } catch {
     return null
@@ -113,6 +115,65 @@ export async function collectMetrics(): Promise<void> {
   })
 }
 
+/** Docker 容器信息 */
+export interface ContainerInfo {
+  name: string
+  memUsage: number
+  memLimit: number
+  memPercent: number
+  cpuPercent: number
+  pids: number
+}
+
+/** 获取 Docker 容器统计（通过 Docker socket） */
+export async function getDockerStats(): Promise<ContainerInfo[]> {
+  try {
+    // 列出所有容器
+    const listRes = await fetch('http://localhost/v1.47/containers/json', {
+      headers: {Host: ''},
+      signal: AbortSignal.timeout(5000)
+    })
+    if (!listRes.ok) return []
+    const containers = await listRes.json() as any[]
+
+    // 并发获取每个容器的 stats
+    const stats = await Promise.all(
+      containers.map(async (c: any) => {
+        try {
+          const sRes = await fetch(
+            `http://localhost/v1.47/containers/${c.Id}/stats?stream=false`,
+            {headers: {Host: ''}, signal: AbortSignal.timeout(3000)}
+          )
+          if (!sRes.ok) return null
+          const s = await sRes.json() as any
+          const name = (c.Names?.[0] ?? '').replace(/^\//, '')
+          const memUsage = (s.memory_stats?.usage ?? 0) - (s.memory_stats?.stats?.cache ?? 0)
+          const memLimit = s.memory_stats?.limit ?? 1
+          const cpuDelta = s.cpu_stats?.cpu_usage?.total_usage ?? 0
+          const sysDelta = s.cpu_stats?.system_cpu_usage ?? 1
+          const preCpu = s.precpu_stats?.cpu_usage?.total_usage ?? 0
+          const preSys = s.precpu_stats?.system_cpu_usage ?? 1
+          const cpuPerc = sysDelta > preSys
+            ? ((cpuDelta - preCpu) / (sysDelta - preSys)) * (s.cpu_stats?.online_cpus ?? 1) * 100
+            : 0
+          return {
+            name,
+            memUsage: memUsage / 1024 / 1024,
+            memLimit: memLimit / 1024 / 1024,
+            memPercent: (memUsage / memLimit) * 100,
+            cpuPercent: Math.min(100, Math.round(cpuPerc * 100) / 100),
+            pids: s.pids_stats?.current ?? 0
+          }
+        } catch { return null }
+      })
+    )
+
+    return stats.filter(Boolean) as ContainerInfo[]
+  } catch {
+    return []
+  }
+}
+
 /** 查询历史指标 */
 export async function queryMetrics(
   hours = 24
@@ -124,6 +185,8 @@ export async function queryMetrics(
   memTotalMb: number
   swapPercent: number
   diskPercent: number
+  diskUsedGb: number
+  diskTotalGb: number
 }>> {
   const since = new Date(Date.now() - hours * 3600 * 1000)
 
@@ -134,13 +197,20 @@ export async function queryMetrics(
     .orderBy(desc(serverMetrics.collectedAt))
     .limit(1000)
 
-  return rows.reverse().map(r => ({
-    collectedAt: r.collectedAt?.toISOString() ?? '',
-    cpuPercent: parseFloat(r.cpuPercent),
-    memPercent: parseFloat(r.memPercent),
-    memUsedMb: parseFloat(r.memUsedMb),
-    memTotalMb: parseFloat(r.memTotalMb),
-    swapPercent: parseFloat(r.swapPercent),
-    diskPercent: parseFloat(r.diskPercent)
-  }))
+  return rows.reverse().map(r => {
+    const diskTotal = parseFloat(r.netTxBytes) // 存的是 diskSize
+    const diskAvail = parseFloat(r.netRxBytes) // 存的是 diskAvail
+    const diskUsed = diskTotal - diskAvail
+    return {
+      collectedAt: r.collectedAt?.toISOString() ?? '',
+      cpuPercent: parseFloat(r.cpuPercent),
+      memPercent: parseFloat(r.memPercent),
+      memUsedMb: parseFloat(r.memUsedMb),
+      memTotalMb: parseFloat(r.memTotalMb),
+      swapPercent: parseFloat(r.swapPercent),
+      diskPercent: diskTotal > 0 ? Math.round((diskUsed / diskTotal) * 10000) / 100 : 0,
+      diskUsedGb: Math.round(diskUsed / 1024 / 1024 / 1024 * 10) / 10,
+      diskTotalGb: Math.round(diskTotal / 1024 / 1024 / 1024 * 10) / 10
+    }
+  })
 }

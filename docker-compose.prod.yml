@@ -45,6 +45,8 @@ services:
       # 显式禁用代理，避免服务器环境变量 HTTPS_PROXY 干扰
       HTTPS_PROXY: ''
       HTTP_PROXY: ''
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       postgres:
         condition: service_healthy
