@@ -41,17 +41,15 @@ RUN pnpm --filter @nexttrade/shared run build
 ENV STATIC_EXPORT=true
 RUN pnpm --filter @nexttrade/web run build
 
-# ─── 生产阶段（静态文件服务，无需 Node.js） ───
-FROM python:3.13-alpine
+# ─── 生产阶段（静态文件服务，无需 Node.js/Python） ───
+FROM alpine:3.19
 
-# 复制静态导出产物（out 目录已包含 public）
+RUN apk add --no-cache busybox-extras
+
+# 复制静态导出产物（trailingSlash 确保目录结构）
 COPY --from=builder /app/apps/web/out /var/www/html
-COPY apps/web/server.py /server.py
-
-# Next.js 静态导出自动生成 404.html，确保存在
-RUN test -f /var/www/html/404.html || echo '{"error":"not found"}' > /var/www/html/404.html
 
 EXPOSE 3000
 
-# SPA 静态服务器（所有非文件请求回退到 index.html）
-CMD ["python3", "/server.py", "3000", "/var/www/html"]
+# busybox httpd 轻量级 HTTP 服务器
+CMD ["busybox", "httpd", "-f", "-v", "-p", "3000", "-h", "/var/www/html"]
