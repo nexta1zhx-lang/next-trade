@@ -50,14 +50,12 @@ export async function fetchNodeMetrics(): Promise<{
     const cpuCount = get('node_nprocs')
     const cpuPercent = cpuCount > 0 ? Math.min(100, (load1 / cpuCount) * 100) : 0
 
-    // 磁盘
+    // 磁盘（根分区使用率）
     let diskPercent = 0
-    const diskMatch = text.match(/node_filesystem_avail_bytes{device="[^"]+",fstype="[^"]+",mountpoint="/"[^}]*}\s+([\d.]+)/)
-    const diskTotalMatch = text.match(/node_filesystem_size_bytes{device="[^"]+",fstype="[^"]+",mountpoint="/"[^}]*}\s+([\d.]+)/)
-    if (diskTotalMatch && diskMatch) {
-      const total = parseFloat(diskTotalMatch[1])
-      const avail = parseFloat(diskMatch[1])
-      diskPercent = total > 0 ? ((total - avail) / total) * 100 : 0
+    const diskSize = get('node_filesystem_size_bytes{mountpoint="/"}')
+    const diskAvail = get('node_filesystem_avail_bytes{mountpoint="/"}')
+    if (diskSize > 0) {
+      diskPercent = Math.round(((diskSize - diskAvail) / diskSize) * 10000) / 100
     }
 
     // 网络（取所有接口总和）
