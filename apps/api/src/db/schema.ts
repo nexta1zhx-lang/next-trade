@@ -766,3 +766,30 @@ export const equityHourly = pgTable(
     hourIdx: index('idx_eh_hour').on(table.hour)
   })
 )
+
+// ═══════════════════════════════════════════
+// 服务器监控指标（每分钟一条）
+// ═══════════════════════════════════════════
+export const serverMetrics = pgTable('server_metrics', {
+  id: serial('id').primaryKey(),
+  /** 采集时间 */
+  collectedAt: timestamp('collected_at').defaultNow().notNull(),
+  /** CPU 使用率（%） */
+  cpuPercent: numeric('cpu_percent', {precision: 6, scale: 2}).notNull(),
+  /** 内存使用率（%） */
+  memPercent: numeric('mem_percent', {precision: 6, scale: 2}).notNull(),
+  /** 已用内存（MB） */
+  memUsedMb: numeric('mem_used_mb', {precision: 8, scale: 1}).notNull(),
+  /** 总内存（MB） */
+  memTotalMb: numeric('mem_total_mb', {precision: 8, scale: 1}).notNull(),
+  /** Swap 使用率（%） */
+  swapPercent: numeric('swap_percent', {precision: 6, scale: 2}).notNull(),
+  /** 磁盘使用率（%） */
+  diskPercent: numeric('disk_percent', {precision: 6, scale: 2}).notNull(),
+  /** 网络入站（字节/秒） */
+  netRxBytes: numeric('net_rx_bytes', {precision: 16, scale: 0}).default('0').notNull(),
+  /** 网络出站（字节/秒） */
+  netTxBytes: numeric('net_tx_bytes', {precision: 16, scale: 0}).default('0').notNull(),
+}, table => ({
+  timeIdx: index('idx_sm_time').on(table.collectedAt)
+}))

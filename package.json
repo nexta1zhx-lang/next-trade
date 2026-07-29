@@ -12,6 +12,7 @@
     "deploy:api": "bash scripts/deploy.sh api",
     "deploy:web": "bash scripts/deploy.sh web",
     "deploy:db": "bash scripts/deploy.sh --db-push",
+    "deploy:caddy": "echo '▶ 重启 Caddy...' && ssh aws2 'cd ~/nextTrade && docker compose -f docker-compose.prod.yml up -d --force-recreate caddy'",
     "apk": "bash scripts/build-apk.sh",
     "apk:dev": "bash scripts/build-apk.sh --dev",
     "apk:upload": "bash scripts/build-apk.sh --no-upload",

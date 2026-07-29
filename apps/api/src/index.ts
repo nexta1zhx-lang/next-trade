@@ -126,6 +126,11 @@ app.route('/api/asset', assetRouter)
 app.use('/api/v2/equity/*', authMiddleware)
 app.route('/api/v2/equity', equityRouter)
 
+// ─── 服务器监控路由（公开） ───
+import {monitorRouter} from './routes/monitor.js'
+import {collectMetrics} from './services/monitorService.js'
+app.route('/api/monitor', monitorRouter)
+
 // ─── 启动 ───
 async function main() {
   // 连接 Redis
@@ -371,6 +376,16 @@ async function main() {
     {timezone: 'UTC'}
   )
   console.log('✓ Equity daily finalize cron registered (UTC 00:00)')
+
+  // 服务器监控采集 (每 60 秒)
+  setInterval(async () => {
+    try {
+      await collectMetrics()
+    } catch (e) {
+      console.error('[Monitor] 采集失败:', e)
+    }
+  }, 60_000)
+  console.log('✓ Server monitor collector registered (every 60s)')
 
   // 优雅退出（带强制兜底，确保 tsx watch 能正常重启）
   function shutdown() {
