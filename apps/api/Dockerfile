@@ -35,7 +35,8 @@ RUN pnpm --filter @nexttrade/api run build
 # ─── 生产阶段 ───
 FROM node:22-alpine
 
-RUN apk add --no-cache python3 make g++
+# docker-cli 用于监控模块查询容器统计
+RUN apk add --no-cache docker-cli
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /app
