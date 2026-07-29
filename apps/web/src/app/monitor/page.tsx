@@ -213,6 +213,3 @@ function MiniChart({data, label, field, color, unit}: {
     </div>
   )
 }
-    </div>
-  )
-}
