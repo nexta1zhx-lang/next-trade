@@ -5,17 +5,16 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# ─── Capacitor / WebView ──────────────────────────────────
+# Capacitor 通过 JavaScriptInterface 与原生通信，需要保留这些类
+-keep class com.getcapacitor.** { *; }
+-keep class com.nexttrade.app.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# 保留 JavaScriptInterface 方法（供 WebView JS 调用）
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ─── 保留行号信息（方便排查问题）────────────────────────��
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

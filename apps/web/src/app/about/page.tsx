@@ -20,9 +20,6 @@ import {
   Sparkles
 } from 'lucide-react'
 
-// ─── 版本信息 ───
-import {APP_VERSION, APP_BUILD} from '@nexttrade/shared'
-
 // ─── 特性列表 ───
 interface Feature {
   icon: typeof Activity
@@ -93,6 +90,13 @@ interface ChangelogEntry {
   items: string[]
 }
 
+interface VersionInfo {
+  latest: string
+  build: number
+  apkUrl: string
+  releaseDate: string
+}
+
 // ─── 统计数字 ───
 const STATS = [
   {label: '支持的交易所', value: '6'},
@@ -153,66 +157,86 @@ function ChangelogSection() {
         更新日志
       </h2>
       <div className="space-y-4">
-        {entries.map(entry => (
-          <div
-            key={entry.version}
-            className="relative pl-6 border-l-2 border-border"
-          >
-            <div className="absolute left-0 top-0 -translate-x-1/2 w-4 h-4 rounded-full bg-card border-2 border-primary" />
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-sm font-bold text-foreground">
-                v{entry.version}
-              </span>
-              <span className="text-[11px] text-muted-foreground">
-                {entry.date}
-              </span>
-            </div>
-            <ul className="space-y-1">
-              {entry.items.slice(0, 5).map((item, i) => (
-                <li
-                  key={i}
-                  className="text-xs text-muted-foreground flex items-start gap-2"
+        {entries.map(entry => {
+          const apkName = `nexttrade-v${entry.version}-b${entry.build}.apk`
+          return (
+            <div
+              key={entry.version}
+              className="relative pl-6 border-l-2 border-border"
+            >
+              <div className="absolute left-0 top-0 -translate-x-1/2 w-4 h-4 rounded-full bg-card border-2 border-primary" />
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-sm font-bold text-foreground">
+                  v{entry.version}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {entry.date}
+                </span>
+                <a
+                  href={`/downloads/${apkName}`}
+                  download
+                  className="ml-auto text-[10px] text-primary hover:underline flex items-center gap-1"
                 >
-                  <ChevronRight className="w-3 h-3 mt-0.5 shrink-0 text-primary/60" />
-                  {item}
-                </li>
-              ))}
-              {entry.items.length > 5 && (
-                <li className="text-xs text-gray-500 flex items-start gap-2">
-                  <span className="w-3 shrink-0 text-center">···</span>
-                  还有 {entry.items.length - 5} 条更新
-                </li>
-              )}
-            </ul>
-          </div>
-        ))}
+                  <Download className="w-3 h-3" />
+                  下载 APK
+                </a>
+              </div>
+              <ul className="space-y-1">
+                {entry.items.slice(0, 5).map((item, i) => (
+                  <li
+                    key={i}
+                    className="text-xs text-muted-foreground flex items-start gap-2"
+                  >
+                    <ChevronRight className="w-3 h-3 mt-0.5 shrink-0 text-primary/60" />
+                    {item}
+                  </li>
+                ))}
+                {entry.items.length > 5 && (
+                  <li className="text-xs text-gray-500 flex items-start gap-2">
+                    <span className="w-3 shrink-0 text-center">···</span>
+                    还有 {entry.items.length - 5} 条更新
+                  </li>
+                )}
+              </ul>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
 export default function IntroPage() {
-  const [isDev, setIsDev] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [isDev, setIsDev] = useState(false)
+  const [version, setVersion] = useState<VersionInfo | null>(null)
+  const [changelog, setChangelog] = useState<ChangelogEntry[]>([])
+
   useEffect(() => {
-    setIsDev(
+    const dev =
       window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1'
-    )
+      window.location.hostname === '127.0.0.1'
+    setIsDev(dev)
     setMounted(true)
   }, [])
 
-  // 从 versions.json 获取最新 APK 版本
-  const [latestApk, setLatestApk] = useState('')
+  // 加载版本信息和更新日志
   useEffect(() => {
     fetch('/downloads/versions.json')
       .then(r => r.json())
-      .then(v => setLatestApk(v.apkUrl))
+      .then(setVersion)
+      .catch(() => {})
+    fetch('/downloads/changelog.json')
+      .then(r => r.json())
+      .then(setChangelog)
       .catch(() => {})
   }, [])
 
-  const apkUrl = isDev ? '/downloads/nexttrade-v0.1.0-dev.apk' : latestApk || ''
-  const apkLabel = isDev ? '下载 Android APK（开发版）' : '下载 Android APK'
+  const latestVersion = version?.latest ?? ''
+  const apkUrl = version?.apkUrl ?? ''
+  const apkLabel = isDev
+    ? `下载 Android APK v${latestVersion}（开发版）`
+    : `下载 Android APK v${latestVersion}`
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* ─── 顶部导航条 ─── */}
@@ -343,36 +367,87 @@ export default function IntroPage() {
             下载与安装
           </h2>
 
-          <a
-            href={mounted ? apkUrl : '#'}
-            download
-            className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer"
-          >
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors shrink-0">
-              <Smartphone className="w-6 h-6 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-semibold text-foreground">
-                  {mounted ? apkLabel : '下载 APK'}
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                  {isDev ? `v${APP_VERSION}-dev` : `v${APP_VERSION}`}
-                </span>
+          {version && (
+            <a
+              href={mounted ? apkUrl : '#'}
+              download
+              className="group flex items-center gap-4 rounded-xl border border-border bg-card p-5 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer mb-3"
+            >
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors shrink-0">
+                <Smartphone className="w-6 h-6 text-primary" />
               </div>
-              <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span>~25 MB</span>
-                <span>·</span>
-                <span>更新于 2026-07-28</span>
-                <span>·</span>
-                <span className="flex items-center gap-0.5 text-primary group-hover:underline">
-                  下载 <ExternalLink className="w-3 h-3" />
-                </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-semibold text-foreground">
+                    {mounted ? apkLabel : '下载 APK'}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    v{version.latest}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <span>Build {version.build}</span>
+                  <span>·</span>
+                  <span>更新于 {version.releaseDate.slice(0, 10)}</span>
+                  <span>·</span>
+                  <span className="flex items-center gap-0.5 text-primary group-hover:underline">
+                    下载 <ExternalLink className="w-3 h-3" />
+                  </span>
+                </div>
               </div>
-            </div>
-          </a>
+            </a>
+          )}
 
-          <div className="mt-4 rounded-xl border border-border bg-card p-4">
+          {/* ─── 历史版本列表 ─── */}
+          {changelog.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 mb-3">
+              <h3 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-primary" />
+                历史版本
+              </h3>
+              <div className="space-y-2">
+                {changelog.map(entry => {
+                  const apkName = `nexttrade-v${entry.version}-b${entry.build}.apk`
+                  const isLatest =
+                    entry.version === version?.latest &&
+                    entry.build === version?.build
+                  return (
+                    <div
+                      key={`${entry.version}-${entry.build}`}
+                      className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-foreground">
+                          v{entry.version}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Build {entry.build}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {entry.date}
+                        </span>
+                        {isLatest && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
+                            最新
+                          </span>
+                        )}
+                      </div>
+                      <a
+                        href={`/downloads/${apkName}`}
+                        download
+                        className="text-[10px] text-primary hover:underline flex items-center gap-1"
+                      >
+                        <Download className="w-3 h-3" />
+                        下载
+                      </a>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-xl border border-border bg-card p-4">
             <h3 className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-primary" />
               安装说明
@@ -405,8 +480,9 @@ export default function IntroPage() {
         {/* ─── Footer ─── */}
         <footer className="text-center pt-4 pb-8 border-t border-border">
           <p className="text-[10px] text-muted-foreground">
-            nextTrade v{APP_VERSION} (Build {APP_BUILD}) &middot;{' '}
-            {new Date().getFullYear()} &middot; 仅供个人交易参考，不构成投资建议
+            nextTrade v{version?.latest ?? '—'} (Build {version?.build ?? '—'})
+            &middot; {new Date().getFullYear()} &middot;
+            仅供个人交易参考，不构成投资建议
           </p>
         </footer>
       </div>

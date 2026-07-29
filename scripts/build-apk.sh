@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 APP_NAME="nextTrade"
 WEB_DIR="apps/web"
 APK_DIR="apk"
-APK_OUTPUT="$WEB_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
+APK_OUTPUT="$WEB_DIR/android/app/build/outputs/apk/release/app-release.apk"
 
 # 服务器配置（可通过参数或环境变量覆盖）
 SERVER="${BUILD_SERVER:-aws2}"
@@ -100,8 +100,12 @@ if [ "$SKIP_BUILD" = false ]; then
   echo ""
   echo "▶ [4/5] 构建 Android APK..."
 
-  # 预先复制 changelog.json 到 public（在 cd 到 web 目录之前执行，保持路径正确）
+  # 清理 public/downloads 中的旧 APK，防止被 Next.js 打包进静态导出（APK 膨胀根源）
   mkdir -p "$WEB_DIR/public/downloads"
+  rm -f "$WEB_DIR/public/downloads"/nexttrade-*.apk
+  echo "  → 已清理旧 APK 文件"
+
+  # 预先复制 changelog.json 到 public
   cp "$APK_DIR/changelog.json" "$WEB_DIR/public/downloads/changelog.json"
   # 预先生成 versions.json，供 Next.js 静态构建打包到 out/
   cat > "$WEB_DIR/public/downloads/versions.json" << EOJ
@@ -132,10 +136,10 @@ EOJ
   echo "  → Capacitor 同步..."
   npx cap sync
 
-  # 4c. Gradle 编译 APK
-  echo "  → Gradle 编译..."
+  # 4c. Gradle 编译 APK（release 模式，启用代码压缩）
+  echo "  → Gradle 编译 (release)..."
   cd android
-  ./gradlew assembleDebug --no-daemon
+  ./gradlew assembleRelease --no-daemon
   cd ..
 
   cd ../..  # 回到项目根目录
