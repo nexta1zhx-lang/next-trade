@@ -1,6 +1,5 @@
 import type {Metadata, Viewport} from 'next'
 import {Providers} from '@/lib/providers'
-import {AppShell} from '@/components/layout/AppShell'
 import {DebugLogger} from '@/components/DebugLogger'
 import './globals.css'
 
@@ -29,7 +28,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       <body>
         <Providers>
           <DebugLogger />
-          <AppShell>{children}</AppShell>
+          {children}
         </Providers>
       </body>
     </html>
