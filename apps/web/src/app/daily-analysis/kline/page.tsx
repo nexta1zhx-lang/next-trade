@@ -1,6 +1,6 @@
 'use client'
 
-import {Suspense, useMemo} from 'react'
+import {Suspense, useMemo, useEffect} from 'react'
 import {useSearchParams, useRouter} from 'next/navigation'
 import type {DailyAnalysisItem} from '@nexttrade/shared'
 import dynamic from 'next/dynamic'
@@ -35,7 +35,16 @@ function KlineContent() {
   }, [symbol])
 
   const handleBack = useMemo(() => {
-    return () => router.back()
+    return () => router.replace('/daily-analysis')
+  }, [router])
+
+  // Android 硬件返回键/手势滑动返回 → 回到行情筛选页
+  useEffect(() => {
+    const onPopState = () => {
+      router.replace('/daily-analysis')
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
   }, [router])
 
   if (!symbol || !item) {

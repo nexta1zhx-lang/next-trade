@@ -125,6 +125,8 @@ export default function SymbolDetail({
   const chartAreaRef = useRef<HTMLDivElement>(null)
   const [editMode, setEditMode] = useState(false)
   const [deleteMode, setDeleteMode] = useState(false)
+  const [klineFullscreen, setKlineFullscreen] = useState(false)
+  const [fsHeight, setFsHeight] = useState(300)
   const {isMobile} = useDeviceType()
   // 固定初始值 300 避免 hydration 不匹配，ResizeObserver 会在 mount 后矫正
   const [chartHeight, setChartHeight] = useState(300)
@@ -492,6 +494,97 @@ export default function SymbolDetail({
     return () => clearTimeout(timer)
   }, [expanded, chart, candleSeries])
 
+  // 全屏K线模式 — 自适应横竖屏
+  useEffect(() => {
+    if (!klineFullscreen || !isMobile) return
+    setFsHeight(window.innerHeight - 44)
+    const onResize = () => setFsHeight(window.innerHeight - 44)
+    window.addEventListener('resize', onResize)
+    // 进入全屏API
+    if (
+      document.documentElement.requestFullscreen &&
+      !document.fullscreenElement
+    ) {
+      document.documentElement.requestFullscreen().catch(() => {})
+    }
+    return () => {
+      window.removeEventListener('resize', onResize)
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    }
+  }, [klineFullscreen, isMobile])
+
+  // 移动端全屏K线模式 — 仅显示图表
+  if (isMobile && klineFullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#18181b] flex flex-col">
+        {/* 顶部条 */}
+        <div className="flex items-center justify-between px-3 py-2 shrink-0 border-b border-gray-700/30">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => setKlineFullscreen(false)}
+              className="text-gray-400 hover:text-gray-200 p-1 shrink-0"
+              aria-label="退出全屏"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h3 className="text-sm font-bold text-gray-100 truncate">
+              {item.base}{' '}
+              <span className="text-xs text-gray-500 font-normal">/USDT</span>
+            </h3>
+          </div>
+          <div className="flex items-center gap-1 text-xs shrink-0">
+            {TIMEFRAMES.map(tf => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${timeframe === tf ? 'bg-primary/20 text-primary' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* 全屏图表 + 绘图 */}
+        <div className="flex-1 min-h-0 flex gap-2 p-2">
+          <LeftToolbar
+            activeTool={activeTool}
+            onSelectTool={setActiveTool}
+            onClearAll={handleClearAll}
+            hasDrawings={Array.isArray(drawings) && drawings.length > 0}
+            editMode={editMode}
+            onEditModeChange={setEditMode}
+            deleteMode={deleteMode}
+            onDeleteModeChange={setDeleteMode}
+          />
+          <div className="relative flex-1 min-h-0">
+            <KlineChart
+              key={`${item.symbol}-${klineFullscreen}`}
+              symbol={item.symbol}
+              timeframe={timeframe}
+              height={fsHeight}
+              onChartReady={handleChartReady}
+              onCrosshairChange={handleCrosshairChange}
+            />
+            <DrawingOverlay
+              key={`ov-${item.symbol}-fs`}
+              chart={chart}
+              candleSeries={candleSeries}
+              activeTool={activeTool}
+              drawings={drawings ?? []}
+              onAddDrawing={handleAddDrawing}
+              onDeleteDrawing={handleDeleteDrawing}
+              onUpdateDrawing={handleUpdateDrawing}
+              onClearAll={handleClearAll}
+              onToolChange={setActiveTool}
+              editMode={editMode}
+              deleteMode={deleteMode}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       ref={containerRef2}
@@ -515,19 +608,19 @@ export default function SymbolDetail({
             </span>
           </h3>
           {/* 今日实时行情 */}
-          <div className="hidden sm:flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 text-xs min-w-0">
             {ticker ? (
               <>
-                <span className="text-gray-200 font-mono tabular-nums">
+                <span className="text-gray-200 font-mono tabular-nums shrink-0">
                   ${parseFloat(ticker.price).toFixed(4)}
                 </span>
                 <span
-                  className={`font-medium ${Number(ticker.change) >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                  className={`font-medium shrink-0 ${Number(ticker.change) >= 0 ? 'text-green-400' : 'text-red-400'}`}
                 >
                   {Number(ticker.change) >= 0 ? '+' : ''}
                   {Number(ticker.change).toFixed(2)}%
                 </span>
-                <span className="text-gray-500">
+                <span className="text-gray-500 shrink-0 hidden xs:inline">
                   量{' '}
                   <span className="text-gray-300">
                     {fmtVol(Number(ticker.quoteVol))}
@@ -543,7 +636,7 @@ export default function SymbolDetail({
                   {item.change.toFixed(2)}%
                 </span>
                 {item.quoteVolume > 0 && (
-                  <span className="text-gray-500">
+                  <span className="text-gray-500 shrink-0 hidden xs:inline">
                     量{' '}
                     <span className="text-gray-300">
                       {fmtVol(item.quoteVolume)}
@@ -603,34 +696,16 @@ export default function SymbolDetail({
           >
             {drawSaveMode === 'cloud' ? '云' : '本地'}
           </button>
-          {/* PC/平板放大按钮 — 移动端隐藏 */}
-          {/* 放大/全屏按钮 */}
+          {/* 放大按钮 — PC端展开右侧面板，移动端全屏K线 */}
           <button
-            onClick={() => {
-              if (onExpandToggle) {
-                // PC/平板：展开右侧面板
-                onExpandToggle()
-              } else {
-                // 移动端：全屏
-                const el = containerRef2.current
-                if (el && !document.fullscreenElement) {
-                  el.requestFullscreen?.()
-                } else {
-                  document.exitFullscreen?.()
-                }
-              }
-            }}
-            className="flex text-gray-500 hover:text-gray-300 p-1 -mr-1"
-            title={
-              document.fullscreenElement
-                ? '退出全屏'
-                : expanded
-                  ? '缩小'
-                  : '放大'
+            onClick={
+              isMobile ? () => setKlineFullscreen(v => !v) : onExpandToggle
             }
+            className="flex text-gray-500 hover:text-gray-300 p-1 -mr-1"
+            title={klineFullscreen ? '退出全屏' : expanded ? '缩小' : '放大'}
           >
             <Maximize2
-              className={`w-4 h-4 transition-transform ${expanded || document.fullscreenElement ? 'rotate-45' : ''}`}
+              className={`w-4 h-4 transition-transform ${klineFullscreen || expanded ? 'rotate-45' : ''}`}
             />
           </button>
         </div>

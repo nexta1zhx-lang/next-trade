@@ -15,7 +15,6 @@ import {
 import type {DailyAnalysisResult, DailyAnalysisItem} from '@nexttrade/shared'
 import type {FavoriteSymbol} from '@nexttrade/shared'
 import dynamic from 'next/dynamic'
-import {useRouter} from 'next/navigation'
 import {authHeaders, getToken, API_ORIGIN} from '@/lib/api'
 import {useDeviceType} from '@/hooks/useDeviceType'
 import {useUserConfig} from '@/hooks/useUserConfig'
@@ -96,7 +95,6 @@ export default function DailyAnalysisPage() {
     null
   )
   const {isMobile} = useDeviceType()
-  const router = useRouter()
   const [chartExpanded, setChartExpanded] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -264,13 +262,8 @@ export default function DailyAnalysisPage() {
 
   const selectSymbol = useCallback(
     (item: DailyAnalysisItem) => {
-      if (isMobile) {
-        // 移动端跳转到独立 K 线路由页面
-        router.push(
-          `/daily-analysis/kline?symbol=${encodeURIComponent(item.symbol)}&date=${encodeURIComponent(date)}`
-        )
-      } else {
-        setSelectedItem(item)
+      setSelectedItem(item)
+      if (!isMobile) {
         window.history.pushState(
           null,
           '',
@@ -278,13 +271,15 @@ export default function DailyAnalysisPage() {
         )
       }
     },
-    [isMobile, router, date]
+    [isMobile]
   )
 
   const closeSymbol = useCallback(() => {
     setSelectedItem(null)
-    window.history.pushState(null, '', '/daily-analysis')
-  }, [])
+    if (!isMobile) {
+      window.history.pushState(null, '', '/daily-analysis')
+    }
+  }, [isMobile])
 
   return (
     <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-full flex flex-col overflow-hidden">
@@ -869,7 +864,17 @@ export default function DailyAnalysisPage() {
             )}
           </div>
 
-          {/* 移动端 K 线已跳转到独立路由 /daily-analysis/kline */}
+          {/* 移动端 K 线全屏覆盖层 */}
+          {isMobile && selectedItem && (
+            <div className="fixed inset-0 z-50 md:hidden">
+              <SymbolDetail
+                item={selectedItem}
+                selectedDate={date}
+                onClose={closeSymbol}
+                ticker={tickerMap[selectedItem.symbol]}
+              />
+            </div>
+          )}
         </div>
       )}
 

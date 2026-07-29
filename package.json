@@ -16,8 +16,8 @@
     "apk:dev": "bash scripts/build-apk.sh --dev",
     "apk:upload": "bash scripts/build-apk.sh --no-upload",
     "changelog": "bash scripts/gen-changelog.sh",
-    "release": "bash scripts/deploy.sh && bash scripts/build-apk.sh",
-    "release:dev": "bash scripts/deploy.sh && bash scripts/build-apk.sh --dev",
+    "release": "bash scripts/build-apk.sh &&  bash scripts/deploy.sh --db-push",
+    "release:dev": "bash scripts/build-apk.sh --dev && bash scripts/deploy.sh",
     "docker-d": "docker compose up -d"
   },
   "engines": {
