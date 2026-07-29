@@ -24,7 +24,8 @@ import {
   EyeOff,
   Unlock,
   DollarSign,
-  Activity
+  Activity,
+  Lock
 } from 'lucide-react'
 import * as Tabs from '@radix-ui/react-tabs'
 import {
@@ -44,6 +45,7 @@ interface UserConfig {
   dailyMinQuoteVolume: number
   currency?: string
   assetAutoSync?: number
+  futuresHistorySync?: number
 }
 
 // ─── 交易所图标 ───
@@ -519,6 +521,27 @@ function ParamConfig() {
             <span
               className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${config?.assetAutoSync ? 'translate-x-5' : ''}`}
             />
+          </button>
+        </div>
+      </div>
+
+      {/* 合约历史同步（默认关闭，暂不可开启） */}
+      <div className="bg-card border border-border rounded-xl p-5 opacity-60">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+              获取合约历史成交
+            </label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              绑定 Key 时同步历史成交数据（当前仅做增量更新）
+            </p>
+          </div>
+          <button
+            disabled
+            className="relative w-11 h-6 rounded-full bg-gray-600 cursor-not-allowed opacity-50"
+          >
+            <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full" />
           </button>
         </div>
       </div>

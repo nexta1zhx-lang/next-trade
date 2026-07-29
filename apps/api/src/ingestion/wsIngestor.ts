@@ -21,6 +21,7 @@ import {
   publishPositionUpdate,
   publishEquityUpdate
 } from '../streams/eventStream.js'
+import {redis} from '../services/redis.js'
 import type {WebSocket as WsClient} from 'ws'
 
 const INACTIVITY_TIMEOUT = 30_000
@@ -198,6 +199,11 @@ function handleEvent(
         (err as Error).message
       )
     })
+
+    // ── 更新 Redis 实时持仓缓存 ──
+    updateLivePositionsCache(apiKeyId, a?.P ?? []).catch(err => {
+      console.error('[wsIngestor] 更新持仓缓存失败:', (err as Error).message)
+    })
   } else if (msg.e === 'listenKeyExpired') {
     cleanup(apiKeyId)
     ensureConn(apiKeyId).catch(err => {
@@ -333,4 +339,112 @@ export function unsubscribeClient(apiKeyId: number, ws: WsClient): void {
   ks.clients.delete(ws)
   if (ks.clients.size === 0)
     ks.cleanupTimer = setTimeout(() => cleanup(apiKeyId), INACTIVITY_TIMEOUT)
+}
+
+// ─── Redis 实时持仓缓存（Hash 结构，供 GET /api/v1/positions 直接读取） ───
+// Key: positions:live:{apiKeyId}
+// Field: {symbol} (如 "BTCUSDT")
+// Value: JSON { symbol, entryPrice, quantity, unrealizedPnl, leverage, marginType, liquidationPrice, updatedAt }
+// 无 TTL，靠 updatedAt 判断新鲜度（30s），
+// WS 在线持续更新，不掉币安 API
+//
+// 坑点处理:
+//   1. pa === "0" → HDEL 删除（完全平仓清理）
+//   2. 静止期 markPrice 不更新 → 由前端用 ticker WS 自行计算
+//   3. 无物理 TTL，靠 updatedAt 新鲜度判断
+
+const LIVE_POSITIONS_HASH_PREFIX = 'positions:live:'
+
+async function updateLivePositionsCache(
+  apiKeyId: number,
+  positionsData: Array<{
+    s: string
+    pa: string
+    ep: string
+    up: string
+  }>
+): Promise<void> {
+  if (redis.status !== 'ready') {
+    console.warn('[wsIngestor] Redis 不可用，跳过持仓缓存')
+    return
+  }
+  if (positionsData.length === 0) return
+  console.log(
+    `[wsIngestor] 🔄 ACCOUNT_UPDATE key=${apiKeyId}, ${positionsData.length} 个持仓`
+  )
+  const hashKey = `${LIVE_POSITIONS_HASH_PREFIX}${apiKeyId}`
+  const now = Date.now()
+  const multi = redis.multi()
+
+  // 先读所有旧缓存（一次 HGETALL 替代 N 次 HGET）
+  let oldCache: Record<string, any> = {}
+  try {
+    const raw = await redis.hgetall(hashKey)
+    if (raw) {
+      for (const [k, v] of Object.entries(raw)) {
+        try {
+          if (v) oldCache[k] = JSON.parse(v)
+        } catch {}
+      }
+    }
+  } catch {}
+
+  let hasChanges = false
+
+  for (const p of positionsData) {
+    const amt = parseFloat(p.pa)
+
+    if (Math.abs(amt) < 1e-8) {
+      // pa === "0" → 完全平仓，删除该持仓
+      multi.hdel(hashKey, p.s)
+      hasChanges = true
+      // 同时从 oldCache 中删除，避免下面残留
+      delete oldCache[p.s]
+      continue
+    }
+
+    const oldVal = oldCache[p.s] ?? {}
+    const newVal = {
+      symbol: p.s,
+      positionSide: amt > 0 ? 'LONG' : 'SHORT',
+      quantity: Math.abs(amt),
+      entryPrice: parseFloat(p.ep),
+      markPrice: oldVal.markPrice ?? 0,
+      liquidationPrice: oldVal.liquidationPrice ?? 0,
+      leverage: oldVal.leverage ?? 0,
+      marginType: oldVal.marginType ?? 'cross',
+      notional: oldVal.notional ?? 0,
+      unrealizedPnl: parseFloat(p.up),
+      updatedAt: now
+    }
+
+    multi.hset(hashKey, p.s, JSON.stringify(newVal))
+    hasChanges = true
+  }
+
+  if (hasChanges) {
+    await multi.exec().catch((err: Error) => {
+      console.error('[wsIngestor] 持仓缓存写入失败:', err.message)
+    })
+
+    // 如果所有持仓都被删除（清仓），写入空标记避免反复调币安
+    const remainingKeys = Object.keys(oldCache).filter(
+      k =>
+        !positionsData.some(
+          p => Math.abs(parseFloat(p.pa)) >= 1e-8 && p.s === k
+        )
+    )
+    const allCleared = positionsData.every(
+      p => Math.abs(parseFloat(p.pa)) < 1e-8
+    )
+    if (allCleared && remainingKeys.length === 0) {
+      await redis
+        .hset(hashKey, '_empty', JSON.stringify({updatedAt: Date.now()}))
+        .catch(() => {})
+    }
+
+    console.log(
+      `[wsIngestor] ✅ 持仓缓存已更新 key=${apiKeyId}, ${positionsData.length} 条`
+    )
+  }
 }

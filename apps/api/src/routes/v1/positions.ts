@@ -14,6 +14,7 @@ import {zValidator} from '@hono/zod-validator'
 import {db} from '../../db/index.js'
 import {apiKeys} from '../../db/schema.js'
 import {eq, and} from 'drizzle-orm'
+import {redis} from '../../services/redis.js'
 import {
   getOpenPositionsFromExchange,
   getStoredOpenPositions,
@@ -59,14 +60,84 @@ router.get('/', async c => {
     let openPositions: any[] = []
     let storedPositions: any[] = []
 
+    // ① 读 Redis Hash 缓存
+    const hashKey = `positions:live:${key.id}`
+    let cacheFresh = false
     try {
-      // 从 Binance SDK 获取实时持仓
-      openPositions = await getOpenPositionsFromExchange(key.id)
-    } catch (err) {
-      console.error(
-        `[positions] 实时持仓获取失败 key=${key.id}:`,
-        (err as Error).message
-      )
+      const hashData = await redis.hgetall(hashKey)
+      if (hashData) {
+        const entries = Object.entries(hashData).filter(
+          ([_, v]) => v !== null && v !== undefined
+        )
+        if (entries.length > 0) {
+          // 检查是否为空持仓标记
+          const emptyMarker = entries.find(([k]) => k === '_empty')
+          if (emptyMarker) {
+            const marker = JSON.parse(emptyMarker[1]!)
+            if (Date.now() - (marker.updatedAt ?? 0) <= 30_000) {
+              cacheFresh = true
+              // openPositions 保持 []
+            }
+          } else {
+            const now = Date.now()
+            const positions: any[] = []
+            let allFresh = true
+            for (const [, val] of entries) {
+              try {
+                const p = JSON.parse(val!)
+                positions.push(p)
+                if (now - (p.updatedAt ?? 0) > 30_000) allFresh = false
+              } catch {
+                allFresh = false
+              }
+            }
+            if (allFresh && positions.length > 0) {
+              openPositions = positions
+              cacheFresh = true
+              console.log(
+                `[positions] ✅ 命中缓存 key=${key.id}, ${positions.length} 个持仓`
+              )
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // ② 缓存不新鲜或不存在 → 调币安 API，写入 Hash
+    if (!cacheFresh) {
+      console.log(`[positions] ⚠️ 缓存未命中 key=${key.id}，调用币安 API`)
+      try {
+        openPositions = await getOpenPositionsFromExchange(key.id)
+        if (redis.status === 'ready') {
+          const multi = redis.multi()
+          if (openPositions.length === 0) {
+            // 无持仓时写空标记，避免反复调币安
+            multi.hset(
+              hashKey,
+              '_empty',
+              JSON.stringify({updatedAt: Date.now()})
+            )
+          } else {
+            for (const p of openPositions) {
+              multi.hset(
+                hashKey,
+                p.symbol,
+                JSON.stringify({...p, updatedAt: Date.now()})
+              )
+            }
+          }
+          await multi
+            .exec()
+            .catch((err: Error) =>
+              console.error('[positions] 缓存写入失败:', err.message)
+            )
+        }
+      } catch (err) {
+        console.error(
+          `[positions] 实时持仓获取失败 key=${key.id}:`,
+          (err as Error).message
+        )
+      }
     }
 
     try {

@@ -3,7 +3,7 @@
  *
  * 职责:
  *   1. 拉取 U本位合约账户 (GET /fapi/v2/account)
- *   2. 拉取资金钱包 USDT (GET /sapi/v1/asset/wallet)
+ *   2. 拉取资金钱包 USDT (POST /sapi/v1/asset/get-funding-asset)
  *   3. 发布 EQUITY_RECONCILE 事件
  *
  * 复用 tradeSyncService.ts 的 signedGet 签名机制
@@ -49,6 +49,36 @@ async function signedGet(
   return res.json()
 }
 
+/** POST 签名请求（用于 /sapi/v1/asset/get-funding-asset） */
+async function signedPost(
+  apiKey: string,
+  secret: string,
+  baseUrl: string,
+  path: string,
+  params: Record<string, unknown> = {}
+): Promise<any> {
+  const bodyParts = new URLSearchParams()
+  for (const [k, v] of Object.entries(params)) bodyParts.set(k, String(v))
+  bodyParts.set('recvWindow', '60000')
+  bodyParts.set('timestamp', String(Date.now()))
+  const body = bodyParts.toString()
+  const signature = sign(secret, body)
+
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: {
+      'X-MBX-APIKEY': apiKey,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: `${body}&signature=${signature}`
+  })
+  if (!res.ok) {
+    const bodyText = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status}: ${bodyText.slice(0, 200)}`)
+  }
+  return res.json()
+}
+
 async function getKeyCredentials(
   apiKeyId: number
 ): Promise<{apiKey: string; secret: string}> {
@@ -83,24 +113,28 @@ export async function collectEquity(apiKeyId: number): Promise<CollectResult> {
   // 并行拉取合约账户 + 资金钱包
   const [futuresData, walletData] = await Promise.all([
     signedGet(apiKey, secret, FAPI_BASE, '/fapi/v2/account'),
-    signedGet(apiKey, secret, SAPI_BASE, '/sapi/v1/asset/wallet').catch(
-      (err: Error) => {
-        console.warn(
-          `[equityCollector] 资金钱包拉取失败 key=${apiKeyId}:`,
-          err.message
-        )
-        return [] // 资金钱包失败时返回空数组，不阻塞
+    // POST /sapi/v1/asset/get-funding-asset 查询资金钱包余额
+    signedPost(apiKey, secret, SAPI_BASE, '/sapi/v1/asset/get-funding-asset', {
+      asset: 'USDT'
+    }).catch((err: Error) => {
+      if (err.message?.includes('404') || err.message?.includes('403')) {
+        return [] // 权限不足时返回空
       }
-    )
+      console.warn(
+        `[equityCollector] 资金钱包拉取失败 key=${apiKeyId}:`,
+        err.message
+      )
+      return []
+    })
   ])
 
   const futuresWallet = parseFloat(futuresData.totalWalletBalance ?? '0')
   const unrealizedPnl = parseFloat(futuresData.totalUnrealizedProfit ?? '0')
 
-  // 从资金钱包中提取 USDT
+  // 从资金钱包中提取 USDT（get-funding-asset 返回 asset/free/locked 格式）
   const walletArr: Array<{asset: string; free: string; locked: string}> =
     Array.isArray(walletData) ? walletData : []
-  const usdtEntry = walletArr.find(w => w.asset === 'USDT')
+  const usdtEntry = walletArr.find((w: any) => w.asset === 'USDT')
   const fundingUsdt = usdtEntry
     ? parseFloat(usdtEntry.free) + parseFloat(usdtEntry.locked)
     : 0

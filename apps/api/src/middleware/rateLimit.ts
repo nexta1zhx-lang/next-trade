@@ -46,14 +46,20 @@ export async function authRateLimit(c: Context, next: Next) {
   try {
     await loginLimiter.consume(ip)
     await next()
-  } catch {
-    return c.json(
-      {
-        success: false,
-        error: 'Too many requests. Please try again in 15 minutes.'
-      },
-      429
-    )
+  } catch (err: any) {
+    // rate-limiter-flexible 超限时抛出的错误有 msBeforeNext 属性
+    if (err?.msBeforeNext !== undefined) {
+      return c.json(
+        {
+          success: false,
+          error: 'Too many requests. Please try again in 15 minutes.'
+        },
+        429
+      )
+    }
+    // 其他错误（如 Redis 连接问题）不阻塞登录，降级通过
+    console.warn('[rateLimit] consume 异常，降级通过:', err?.message)
+    await next()
   }
 }
 
@@ -73,13 +79,17 @@ export async function apiRateLimit(c: Context, next: Next) {
   try {
     await apiLimiter.consume(ip)
     await next()
-  } catch {
-    return c.json(
-      {
-        success: false,
-        error: 'Too many requests. Please slow down.'
-      },
-      429
-    )
+  } catch (err: any) {
+    if (err?.msBeforeNext !== undefined) {
+      return c.json(
+        {
+          success: false,
+          error: 'Too many requests. Please slow down.'
+        },
+        429
+      )
+    }
+    console.warn('[rateLimit] api 限流异常，降级通过:', err?.message)
+    await next()
   }
 }

@@ -372,6 +372,9 @@ export const userConfig = pgTable('user_config', {
   /** 是否自动同步历史资产快照 */
   assetAutoSync: integer('asset_auto_sync').default(1).notNull(),
 
+  /** 是否同步合约历史成交（默认关闭，仅做增量） */
+  futuresHistorySync: integer('futures_history_sync').default(0).notNull(),
+
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 })
 

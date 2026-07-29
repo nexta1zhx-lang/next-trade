@@ -110,13 +110,40 @@ router.post('/', zValidator('json', createSchema), async c => {
         console.error(`[keys] 首次资产采集失败 key=${key.id}:`, err.message)
       )
     })
-    // 拉近 30 天历史成交（内部按 7 天窗口迭代）
-    import('../../services/tradeSyncService.js').then(({syncAllSymbols}) => {
-      syncAllSymbols(key.id, Date.now() - 30 * 24 * 60 * 60 * 1000, true).catch(
-        (err: Error) =>
-          console.error(`[keys] 历史成交同步失败 key=${key.id}:`, err.message)
-      )
+
+    // 检查用户配置：是否同步历史成交
+    import('../../db/schema.js').then(async ({userConfig: uc}) => {
+      const {eq} = await import('drizzle-orm')
+      const [cfg] = await db
+        .select({futuresHistorySync: uc.futuresHistorySync})
+        .from(uc)
+        .where(eq(uc.userId, userId))
+        .limit(1)
+      const enabled = cfg?.futuresHistorySync === 1
+
+      if (enabled) {
+        // 拉近 30 天历史成交（内部按 7 天窗口迭代）
+        import('../../services/tradeSyncService.js').then(
+          ({syncAllSymbols}) => {
+            syncAllSymbols(
+              key.id,
+              Date.now() - 30 * 24 * 60 * 60 * 1000,
+              true
+            ).catch((err: Error) =>
+              console.error(
+                `[keys] 历史成交同步失败 key=${key.id}:`,
+                err.message
+              )
+            )
+          }
+        )
+      } else {
+        console.log(
+          `[keys] 跳过历史成交同步 key=${key.id}（futuresHistorySync=0）`
+        )
+      }
     })
+
     // 首次权益基线采集
     import('../../services/equityCollector.js').then(({collectAndPublish}) => {
       collectAndPublish(key.id).catch((err: Error) =>
