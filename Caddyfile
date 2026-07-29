@@ -7,11 +7,15 @@ bitcoooin.cn {
         file_server browse
 
         # JSON 文件不缓存（versions.json 需要实时读取）
-        @json file *.json
+        @json {
+            path *.json
+        }
         header @json Cache-Control "no-cache, no-store, must-revalidate"
 
         # APK 文件缓存 1 小时
-        @apk file *.apk
+        @apk {
+            path *.apk
+        }
         header @apk Cache-Control "public, max-age=3600"
     }
 
