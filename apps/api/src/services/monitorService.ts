@@ -17,6 +17,8 @@ export async function fetchNodeMetrics(): Promise<{
   memTotalMb: number
   swapPercent: number
   diskPercent: number
+  diskTotalGb: number
+  diskUsedGb: number
   netRxBytes: number
   netTxBytes: number
 } | null> {
