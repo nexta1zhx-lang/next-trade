@@ -47,11 +47,15 @@ FROM python:3.13-alpine
 # 复制静态导出产物
 COPY --from=builder /app/apps/web/out /var/www/html
 COPY --from=builder /app/apps/web/public /var/www/html
+COPY --from=builder /app/apps/web/server.py /server.py
 
 # 确保 404 页面存在（Next.js 静态导出自动生成）
 RUN test -f /var/www/html/404.html || echo '{"error":"not found"}' > /var/www/html/404.html
 
+# 合并 public 到 out（public 中的文件优先级更高）
+RUN cp -rn /var/www/html/public/* /var/www/html/ 2>/dev/null; rm -rf /var/www/html/public
+
 EXPOSE 3000
 
-# 使用 Python 内置 HTTP 服务器，仅 ~10MB
-CMD ["python3", "-m", "http.server", "3000", "-d", "/var/www/html", "--bind", "0.0.0.0"]
+# SPA 静态服务器（所有非文件请求回退到 index.html）
+CMD ["python3", "/server.py", "3000", "/var/www/html"]
