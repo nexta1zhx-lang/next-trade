@@ -26,7 +26,7 @@ export async function fetchNodeMetrics(): Promise<{
     const text = await res.text()
 
     const get = (prefix: string): number => {
-      const m = text.match(new RegExp(`^${prefix}\\s+([\\d.]+)`, 'm'))
+      const m = text.match(new RegExp(`^${prefix}\\s+([\\d.eE+-]+)`, 'm'))
       return m ? parseFloat(m[1]) : 0
     }
 
