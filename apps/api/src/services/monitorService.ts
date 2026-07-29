@@ -7,7 +7,7 @@ import {db} from '../db/index.js'
 import {serverMetrics} from '../db/schema.js'
 import {desc, between, sql} from 'drizzle-orm'
 
-const NODE_EXPORTER_URL = 'http://localhost:9100/metrics'
+const NODE_EXPORTER_URL = 'http://node-exporter:9100/metrics'
 
 /** 从 Node Exporter 抓取并解析关键指标 */
 export async function fetchNodeMetrics(): Promise<{

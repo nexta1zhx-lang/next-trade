@@ -37,6 +37,8 @@ import {
   aggregateAllHourlyBarsSafe,
   finalizeAllDailyExtremesSafe
 } from './services/equityTracker.js'
+import {monitorRouter} from './routes/monitor.js'
+import {collectMetrics} from './services/monitorService.js'
 const app = new Hono()
 
 // ─── 全局中间件 ───
@@ -127,8 +129,6 @@ app.use('/api/v2/equity/*', authMiddleware)
 app.route('/api/v2/equity', equityRouter)
 
 // ─── 服务器监控路由（公开） ───
-import {monitorRouter} from './routes/monitor.js'
-import {collectMetrics} from './services/monitorService.js'
 app.route('/api/monitor', monitorRouter)
 
 // ─── 启动 ───
