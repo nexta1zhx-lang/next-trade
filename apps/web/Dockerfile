@@ -41,15 +41,15 @@ RUN pnpm --filter @nexttrade/shared run build
 ENV STATIC_EXPORT=true
 RUN pnpm --filter @nexttrade/web run build
 
-# ─── 生产阶段（静态文件服务，无需 Node.js/Python） ───
+# ─── 生产阶段（静态文件服务，使用 darkhttpd 仅 ~30KB） ───
 FROM alpine:3.19
 
-RUN apk add --no-cache busybox-extras
+RUN apk add --no-cache darkhttpd
 
 # 复制静态导出产物（trailingSlash 确保目录结构）
 COPY --from=builder /app/apps/web/out /var/www/html
 
 EXPOSE 3000
 
-# busybox httpd 轻量级 HTTP 服务器
-CMD ["busybox", "httpd", "-f", "-v", "-p", "3000", "-h", "/var/www/html"]
+# darkhttpd 超轻量静态文件服务器
+CMD ["darkhttpd", "/var/www/html", "--port", "3000", "--no-keepalive"]
