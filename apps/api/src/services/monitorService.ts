@@ -45,12 +45,19 @@ export async function fetchNodeMetrics(): Promise<{
     const swapFree = get('node_memory_SwapFree_bytes')
     const swapPercent = swapTotal > 0 ? ((swapTotal - swapFree) / swapTotal) * 100 : 0
 
-    // CPU 使用率（用 load1 / 核心数 估算）
-    const load1 = get('node_load1')
-    // 从 node_cpu 指标算核心数
-    const cpuMatches = text.match(/^node_cpu_seconds_total{cpu="(\d+)"/gm)
-    const cpuCount = cpuMatches ? new Set(cpuMatches.map(m => m.match(/"(\d+)"/)?.[1])).size : 1
-    const cpuPercent = cpuCount > 0 ? Math.min(100, Math.round((load1 / cpuCount) * 10000) / 100) : 0
+    // CPU 使用率（取累计 idle 占比，倒推已用比率）
+    let totalCpu = 0, idleCpu = 0
+    for (const line of text.split('\n')) {
+      if (!line.startsWith('node_cpu_seconds_total{cpu=')) continue
+      const m = line.match(/[\d.eE+-]+$/)
+      if (!m) continue
+      const val = parseFloat(m[0])
+      totalCpu += val
+      if (line.includes('mode="idle"')) idleCpu += val
+    }
+    const cpuPercent = totalCpu > 0
+      ? Math.min(100, Math.round(((totalCpu - idleCpu) / totalCpu) * 10000) / 100)
+      : 0
 
     // 磁盘（根分区使用率）
     let diskPercent = 0
