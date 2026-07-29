@@ -46,7 +46,7 @@ FROM python:3.13-alpine
 
 # 复制静态导出产物（out 目录已包含 public）
 COPY --from=builder /app/apps/web/out /var/www/html
-COPY server.py /server.py
+COPY apps/web/server.py /server.py
 
 # Next.js 静态导出自动生成 404.html，确保存在
 RUN test -f /var/www/html/404.html || echo '{"error":"not found"}' > /var/www/html/404.html
