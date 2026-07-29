@@ -54,19 +54,27 @@ echo "========================================"
 
 # ─── 0. 检查 swap（小服务器构建需要） ───
 SWAP_SIZE=$(free -m 2>/dev/null | awk '/Swap:/{print $2}') || SWAP_SIZE=0
-if [ "$SWAP_SIZE" -lt 2048 ] 2>/dev/null; then
+if [ "$SWAP_SIZE" -lt 1024 ] 2>/dev/null; then
   echo ""
-  echo "▶ 创建 swap（当前 ${SWAP_SIZE:-0}MB，目标 4GB）..."
-  sudo fallocate -l 4G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 2>/dev/null
-  sudo chmod 600 /swapfile
+  echo "▶ 创建 swap（当前 ${SWAP_SIZE:-0}MB，目标 2GB）..."
+  if command -v fallocate &>/dev/null; then
+    sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 2>/dev/null
+  else
+    sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 2>/dev/null
+  fi
+  sudo chmod 600 /swapfile 2>/dev/null
   sudo mkswap /swapfile > /dev/null 2>&1
   sudo swapon /swapfile > /dev/null 2>&1
   echo "  ✓ swap 已启用"
+else
+  echo "  ✓ swap 充足（当前 ${SWAP_SIZE}MB）"
 fi
 
 # ─── 1. 拉取最新代码 ───
 echo ""
-echo "▶ 拉取最新代码..."
+echo "▶ 丢弃本地改动，拉取最新代码..."
+git reset --hard HEAD
+git clean -fd
 git pull
 
 # ─── 2. 构建并启动（先 build 再 up，避免 --build 同时编译+启动） ───
