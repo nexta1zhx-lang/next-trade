@@ -127,50 +127,41 @@ export interface ContainerInfo {
   pids: number
 }
 
-/** 获取 Docker 容器统计（通过 Docker socket） */
+/** 获取 Docker 容器统计（通过 docker stats 命令） */
 export async function getDockerStats(): Promise<ContainerInfo[]> {
   try {
-    // 列出所有容器
-    const listRes = await fetch('http://localhost/v1.47/containers/json', {
-      headers: {Host: ''},
-      signal: AbortSignal.timeout(5000)
-    })
-    if (!listRes.ok) return []
-    const containers = await listRes.json() as any[]
+    const {execSync} = await import('child_process')
+    const out = execSync(
+      'docker stats --no-stream --format \'{{json .}}\' 2>/dev/null',
+      {timeout: 5000, encoding: 'utf-8'}
+    ).toString().trim()
+    if (!out) return []
 
-    // 并发获取每个容器的 stats
-    const stats = await Promise.all(
-      containers.map(async (c: any) => {
-        try {
-          const sRes = await fetch(
-            `http://localhost/v1.47/containers/${c.Id}/stats?stream=false`,
-            {headers: {Host: ''}, signal: AbortSignal.timeout(3000)}
-          )
-          if (!sRes.ok) return null
-          const s = await sRes.json() as any
-          const name = (c.Names?.[0] ?? '').replace(/^\//, '')
-          const memUsage = (s.memory_stats?.usage ?? 0) - (s.memory_stats?.stats?.cache ?? 0)
-          const memLimit = s.memory_stats?.limit ?? 1
-          const cpuDelta = s.cpu_stats?.cpu_usage?.total_usage ?? 0
-          const sysDelta = s.cpu_stats?.system_cpu_usage ?? 1
-          const preCpu = s.precpu_stats?.cpu_usage?.total_usage ?? 0
-          const preSys = s.precpu_stats?.system_cpu_usage ?? 1
-          const cpuPerc = sysDelta > preSys
-            ? ((cpuDelta - preCpu) / (sysDelta - preSys)) * (s.cpu_stats?.online_cpus ?? 1) * 100
-            : 0
-          return {
-            name,
-            memUsage: memUsage / 1024 / 1024,
-            memLimit: memLimit / 1024 / 1024,
-            memPercent: (memUsage / memLimit) * 100,
-            cpuPercent: Math.min(100, Math.round(cpuPerc * 100) / 100),
-            pids: s.pids_stats?.current ?? 0
-          }
-        } catch { return null }
-      })
-    )
-
-    return stats.filter(Boolean) as ContainerInfo[]
+    const lines = out.split('\n').filter(Boolean)
+    return lines.map(line => {
+      try {
+        const c = JSON.parse(line)
+        const memStr = (c.MemUsage ?? '').split(' / ')[0] || '0'
+        const memLimitStr = (c.MemUsage ?? '').split(' / ')[1] || '0'
+        const parseMem = (s: string): number => {
+          s = s.trim().toUpperCase()
+          if (s.endsWith('GIB')) return parseFloat(s) * 1024
+          if (s.endsWith('MIB')) return parseFloat(s)
+          if (s.endsWith('KIB')) return parseFloat(s) / 1024
+          if (s.endsWith('GB')) return parseFloat(s) * 1024
+          if (s.endsWith('MB')) return parseFloat(s)
+          return parseFloat(s) || 0
+        }
+        return {
+          name: (c.Name ?? '').replace(/^\//, ''),
+          memUsage: parseMem(memStr),
+          memLimit: parseMem(memLimitStr),
+          memPercent: parseFloat(c.MemPerc ?? '0'),
+          cpuPercent: parseFloat(c.CPUPerc ?? '0'),
+          pids: parseInt(c.PIDs ?? '0')
+        }
+      } catch { return null }
+    }).filter(Boolean) as ContainerInfo[]
   } catch {
     return []
   }
