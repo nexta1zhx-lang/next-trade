@@ -54,10 +54,10 @@ echo "========================================"
 
 # ─── 0. 检查 swap（小服务器构建需要） ───
 SWAP_SIZE=$(free -m 2>/dev/null | awk '/Swap:/{print $2}') || SWAP_SIZE=0
-if [ "$SWAP_SIZE" -lt 1024 ] 2>/dev/null; then
+if [ "$SWAP_SIZE" -lt 2048 ] 2>/dev/null; then
   echo ""
-  echo "▶ 创建 swap（当前 ${SWAP_SIZE:-0}MB，目标 2GB）..."
-  sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 2>/dev/null
+  echo "▶ 创建 swap（当前 ${SWAP_SIZE:-0}MB，目标 4GB）..."
+  sudo fallocate -l 4G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096 2>/dev/null
   sudo chmod 600 /swapfile
   sudo mkswap /swapfile > /dev/null 2>&1
   sudo swapon /swapfile > /dev/null 2>&1
@@ -76,8 +76,9 @@ if [ -n "$SERVICE" ]; then
   docker compose -f "$COMPOSE_FILE" build "$SERVICE"
   docker compose -f "$COMPOSE_FILE" up -d "$SERVICE"
 else
-  echo "▶ 全量构建所有服务..."
-  docker compose -f "$COMPOSE_FILE" build
+  echo "▶ 全量构建所有服务（串行：先 api 后 web，避免内存爆满）..."
+  docker compose -f "$COMPOSE_FILE" build api
+  docker compose -f "$COMPOSE_FILE" build web
   docker compose -f "$COMPOSE_FILE" up -d
 fi
 

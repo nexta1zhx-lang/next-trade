@@ -1,6 +1,9 @@
 # ─── 构建阶段 ───
 FROM node:22-alpine AS builder
 
+# 限制 Node.js 堆内存，防止小服务器 OOM
+ENV NODE_OPTIONS=--max-old-space-size=2048
+
 RUN apk add --no-cache python3 make g++
 RUN corepack enable && corepack prepare pnpm@9 --activate
 

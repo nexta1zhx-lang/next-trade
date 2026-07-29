@@ -1,5 +1,51 @@
 # nextTrade 更新日志
 
+## [0.1.3] - 2026-07-30
+
+- ✨  添加移动端全屏K线模式，优化图表显示与交互
+- ✨  更新构建配置，启用代码压缩和资源缩减，更新版本信息至 0.1.2
+- ✨  更新版本信息至 0.1.2，优化构建脚本，添加自动生成更新日志功能
+- ✨  更新版本信息，添加自动生成更新日志功能，优化构建脚本
+- ✨  更新版本信息，自动生成更新日志，优化构建脚本
+- ✨  添加版本和更新日志文件，更新构建脚本以支持自动生成
+- ✨  添加更新日志自动生成脚本，支持构建号递增和版本管理
+- ✨  将 APK 复制到 public/downloads 以便本地开发环境访问
+- ✨  使用状态管理动态更新 APK 下载链接和标签，优化开发环境检测
+- ✨  add APK build and upload script, update versioning, and enhance documentation
+- ✨  update dev script to kill processes on ports 3000 and 3001 before starting dev server
+- ✨  add order summary fields to PositionDetail interface for enhanced trade analysis
+- ✨  add kill script for freeing ports, update dependencies, and add sync-trades script
+- ✨  remove health page and add position management interfaces
+- ✨  更新 Dockerfile 和 docker-compose.prod.yml，添加 API URL 注入和端口限制
+- ✨  enhance docker-compose configuration and add asset analysis interface
+- ✨  每日行情页重构 - 自选/全部/每日三Tab、实时SSE、合约数据、配置可调
+- ✨  每日行情页重构 - 自选/全部/每日三Tab、实时SSE、合约数据、配置可调
+- 🐛  修正 Caddyfile JSON 缓存规则语法
+- 🐛  切回 debug 构建（自动签名），fetch 加时间戳防缓存，Caddy JSON 禁止缓存
+- 🐛  重构构建脚本顺序，构建后自动提交版本号并推送到远程
+- 🐛  更新服务器配置为 aws2，增加构建号自动递增逻辑
+- 🐛  修复 ic_launcher_background.xml 中缺失的闭合标签，更新 styles.xml 和 gradle.properties 以兼容 JDK 21
+- 🐛  添加一键部署脚本的智能路由功能，支持非服务器环境的远程部署
+- 🐛  更新应用主题颜色和样式，添加深色开屏背景以匹配暗色主题
+- 🐛  Caddyfile /api/* 和 /ws/* 用 handle 替代 handle_path，避免路径前缀被剥离
+- 🐛  更新 WebSocket 基础 URL 生成逻辑，修正 HTTPS 下的连接问题 fix: 修改 APK 上传脚本中的服务器配置，使用 AWS 作为默认服务器 fix: 更新运维文档中的 SSH 连接信息，改为使用 AWS
+- 🐛  代码层检测 HTTPS 自动降级到同域相对路径，阻止 Mixed Content
+- 🐛  修复 HTTPS 下 Mixed Content 错误 - API/WS 请求被浏览器拦截
+- 🐛  更新文件引用路径，确保正确导入类型定义；优化构建脚本以自动接受新主机密钥
+- 🐛  修复服务参数初始化，确保默认值为空
+- 🐛  normalize APK filename to lowercase for consistency in build script
+- 🐛 feat: update dev script to kill processes on ports 3000 and 3001 before starting dev server
+- 🐛  format error messages and update WebSocket URL for ticker service
+- 🐛  disable keepAlive in Next.js proxy to prevent ECONNRESET on long API requests
+- 🐛  remove proxy deps and config, disable HTTPS_PROXY in docker-compose
+- 🐛 refactor: update WebSocket service to connect to Binance USDⓈ-M perpetual contracts and improve error handling
+- 🐛  update Dockerfile and server documentation for improved clarity and configuration
+- 🐛  install drizzle-kit in api package scope
+- 🐛  add drizzle-kit to production image for db:push
+- 🐛  ensure web/public directory exists for Docker build
+- 🔧  update WebSocket service to connect to Binance USDⓈ-M perpetual contracts and improve error handling
+- 🔧  drizzle-kit as regular dependency
+
 ## [0.1.2] - 2026-07-28
 
 - ✨  更新版本信息，自动生成更新日志，优化构建脚本

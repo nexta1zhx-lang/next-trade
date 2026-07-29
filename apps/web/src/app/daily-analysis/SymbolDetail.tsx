@@ -589,6 +589,11 @@ export default function SymbolDetail({
     <div
       ref={containerRef2}
       className="rounded-xl bg-[#18181b] border border-gray-700/50 h-full flex flex-col overflow-y-auto"
+      style={
+        isMobile
+          ? {paddingBottom: 'calc(72px + env(safe-area-inset-bottom, 0px))'}
+          : undefined
+      }
     >
       {/* Header */}
       <div className="flex items-center justify-between p-3 md:p-4 pb-2 border-b border-gray-700/30 shrink-0 gap-2">
