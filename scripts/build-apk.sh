@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 APP_NAME="nextTrade"
 WEB_DIR="apps/web"
 APK_DIR="apk"
-APK_OUTPUT="$WEB_DIR/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+APK_OUTPUT="$WEB_DIR/android/app/build/outputs/apk/debug/app-debug.apk"
 
 # 服务器配置（可通过参数或环境变量覆盖）
 SERVER="${BUILD_SERVER:-aws2}"
@@ -138,10 +138,10 @@ EOJ
   echo "  → Capacitor 同步..."
   npx cap sync
 
-  # 4c. Gradle 编译 APK（release 模式，启用代码压缩）
-  echo "  → Gradle 编译 (release)..."
+  # 4c. Gradle 编译 APK（debug 模式，自动签名）
+  echo "  → Gradle 编译 (debug)..."
   cd android
-  ./gradlew assembleRelease --no-daemon
+  ./gradlew assembleDebug --no-daemon
   cd ..
 
   cd ../..  # 回到项目根目录

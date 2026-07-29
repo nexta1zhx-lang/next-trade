@@ -5,6 +5,14 @@ bitcoooin.cn {
     handle_path /downloads/* {
         root * /downloads
         file_server browse
+
+        # JSON 文件不缓存（versions.json 需要实时读取）
+        @json file *.json
+        header @json Cache-Control "no-cache, no-store, must-revalidate"
+
+        # APK 文件缓存 1 小时
+        @apk file *.apk
+        header @apk Cache-Control "public, max-age=3600"
     }
 
     # API 请求直连后端（使用 handle 而非 handle_path，避免剥离 /api 前缀）

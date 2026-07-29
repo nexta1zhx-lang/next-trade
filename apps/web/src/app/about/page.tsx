@@ -220,13 +220,14 @@ export default function IntroPage() {
     setMounted(true)
   }, [])
 
-  // 加载版本信息和更新日志
+  // 加载版本信息和更新日志（加时间戳防缓存）
   useEffect(() => {
-    fetch('/downloads/versions.json')
+    const ts = Date.now()
+    fetch('/downloads/versions.json?t=' + ts)
       .then(r => r.json())
       .then(setVersion)
       .catch(() => {})
-    fetch('/downloads/changelog.json')
+    fetch('/downloads/changelog.json?t=' + ts)
       .then(r => r.json())
       .then(setChangelog)
       .catch(() => {})
