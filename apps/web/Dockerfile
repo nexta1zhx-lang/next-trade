@@ -48,9 +48,8 @@ FROM alpine:3.19
 COPY --from=builder /app/apps/web/out /var/www/html
 COPY --from=builder /app/apps/web/public /var/www/html
 
-# 创建自定义 404 页面（SPA 路由 fallback）
-RUN ln -sf /var/www/html/404.html /var/www/html/404.html 2>/dev/null; \
-    echo '{"error":"not found"}' > /var/www/html/404.html
+# 确保 404 页面存在（Next.js 静态导出自动生成）
+RUN test -f /var/www/html/404.html || echo '{"error":"not found"}' > /var/www/html/404.html
 
 EXPOSE 3000
 
