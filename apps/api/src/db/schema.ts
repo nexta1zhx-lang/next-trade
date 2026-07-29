@@ -716,3 +716,50 @@ export const userFollows = pgTable(
     followingIdx: index('idx_uf_following').on(table.followingId)
   })
 )
+
+// ═══════════════════════════════════════════
+// 增量权益小时 Bar 表（替代旧 account_snapshots 的细化方案）
+// ═══════════════════════════════════════════
+// equity = futures_wallet_balance + futures_unrealized_pnl + funding_wallet_usdt
+// 在线用户: 由 WS ACCOUNT_UPDATE 驱动分钟级 tick，每小时聚合为 bar
+// 离线用户: 每小时 REST 拉取 1 次，samples=1
+export const equityHourly = pgTable(
+  'equity_hourly',
+  {
+    id: serial('id').primaryKey(),
+
+    /** 关联 API Key */
+    apiKeyId: integer('api_key_id')
+      .references(() => apiKeys.id)
+      .notNull(),
+
+    /** UTC 整点时间，如 2026-07-30 14:00:00 */
+    hour: timestamp('hour', {mode: 'date'}).notNull(),
+
+    /** 期初权益 */
+    openVal: numeric('open_val', {precision: 24, scale: 8}).notNull(),
+
+    /** 期内最高 */
+    highVal: numeric('high_val', {precision: 24, scale: 8}).notNull(),
+
+    /** 期内最低 */
+    lowVal: numeric('low_val', {precision: 24, scale: 8}).notNull(),
+
+    /** 期末权益 */
+    closeVal: numeric('close_val', {precision: 24, scale: 8}).notNull(),
+
+    /** 该小时内采样次数（在线时 >1，离线时 =1） */
+    samples: integer('samples').notNull().default(0),
+
+    /** 数据来源: ws | rest */
+    source: varchar('source', {length: 10}).notNull().default('rest'),
+
+    createdAt: timestamp('created_at').defaultNow().notNull()
+  },
+  table => ({
+    /** 每个 Key 每小时唯一一条 */
+    keyHour: uniqueIndex('idx_eh_key_hour').on(table.apiKeyId, table.hour),
+    /** 按时间范围查询加速 */
+    hourIdx: index('idx_eh_hour').on(table.hour)
+  })
+)

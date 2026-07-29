@@ -253,6 +253,23 @@ export const api = {
     })
   },
 
+  // ─── V2 增量权益 ───
+  getEquitySummary(keyId?: number) {
+    return fetchApi<any>(`/v2/equity/summary${keyId ? `?keyId=${keyId}` : ''}`)
+  },
+  getEquityCurve(params: {keyId?: number; days?: number} = {}) {
+    const qs = new URLSearchParams()
+    if (params.keyId) qs.set('keyId', String(params.keyId))
+    if (params.days) qs.set('days', String(params.days))
+    return fetchApi<any>(`/v2/equity/curve?${qs}`)
+  },
+  getEquityToday(keyId?: number) {
+    return fetchApi<any>(`/v2/equity/today${keyId ? `?keyId=${keyId}` : ''}`)
+  },
+  collectEquity() {
+    return fetchApi<any>('/v2/equity/collect', {method: 'POST'})
+  },
+
   // ─── 发布订阅 ───
   getPublishSettings() {
     return fetchApi<any>('/v1/publish/settings')

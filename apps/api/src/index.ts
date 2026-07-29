@@ -31,6 +31,12 @@ import {subscribeClient, unsubscribeClient} from './services/wsUserData.js'
 import {incrementalSync} from './services/tradeSyncService.js'
 import {verifyToken} from './services/auth.js'
 import {startProcessors} from './processor/index.js'
+import {equityRouter} from './routes/equity.js'
+import {collectAllKeys} from './services/equityCollector.js'
+import {
+  aggregateAllHourlyBarsSafe,
+  finalizeAllDailyExtremesSafe
+} from './services/equityTracker.js'
 const app = new Hono()
 
 // ─── 全局中间件 ───
@@ -115,6 +121,10 @@ app.route('/api/v1/publish', publishRouter)
 // ─── 资产快照路由（需登录） ───
 app.use('/api/asset/*', authMiddleware)
 app.route('/api/asset', assetRouter)
+
+// ─── V2 增量权益路由（需登录） ───
+app.use('/api/v2/equity/*', authMiddleware)
+app.route('/api/v2/equity', equityRouter)
 
 // ─── 启动 ───
 async function main() {
@@ -323,6 +333,44 @@ async function main() {
     }
   )
   console.log('✓ Daily asset aggregation cron registered (UTC 00:01')
+
+  // ─── 增量权益系统定时任务 ───
+
+  // 每小时聚合（UTC :02，比整点晚 2 分钟确保数据完整）
+  cron.schedule(
+    '2 * * * *',
+    async () => {
+      console.log('[Cron] 触发权益小时聚合...')
+      await aggregateAllHourlyBarsSafe()
+    },
+    {timezone: 'UTC'}
+  )
+  console.log('✓ Equity hourly aggregation cron registered (UTC :02)')
+
+  // 每日离线 REST 采集（每小时的 :30 分执行一次，覆盖离线用户）
+  cron.schedule(
+    '30 * * * *',
+    async () => {
+      console.log('[Cron] 触发离线权益 REST 采集...')
+      await collectAllKeys()
+    },
+    {timezone: 'UTC'}
+  )
+  console.log('✓ Equity offline REST collection cron registered (UTC :30)')
+
+  // 每日极值归档 (UTC 00:00)
+  cron.schedule(
+    '0 0 * * *',
+    async () => {
+      console.log('[Cron] 触发权益日终归档...')
+      const yesterday = new Date()
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+      const dateStr = yesterday.toISOString().slice(0, 10)
+      await finalizeAllDailyExtremesSafe(dateStr)
+    },
+    {timezone: 'UTC'}
+  )
+  console.log('✓ Equity daily finalize cron registered (UTC 00:00)')
 
   // 优雅退出（带强制兜底，确保 tsx watch 能正常重启）
   function shutdown() {

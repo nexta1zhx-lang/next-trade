@@ -16,7 +16,11 @@ import {db} from '../db/index.js'
 import {apiKeys} from '../db/schema.js'
 import {eq} from 'drizzle-orm'
 import {decrypt} from '../services/crypto.js'
-import {publishTrade, publishPositionUpdate} from '../streams/eventStream.js'
+import {
+  publishTrade,
+  publishPositionUpdate,
+  publishEquityUpdate
+} from '../streams/eventStream.js'
 import type {WebSocket as WsClient} from 'ws'
 
 const INACTIVITY_TIMEOUT = 30_000
@@ -35,6 +39,8 @@ interface KeyState {
   cleanupTimer: ReturnType<typeof setTimeout> | null
   /** 心跳检测定时器，定期清理僵尸连接 */
   heartbeatTimer: ReturnType<typeof setInterval> | null
+  /** 上一个已知权益值（用于计算 deltaEquity） */
+  lastEquity: number | null
 }
 
 const keyMap = new Map<number, KeyState>()
@@ -153,6 +159,45 @@ function handleEvent(
         )
       })
     }
+
+    // ── 权益增量事件 ──
+    const balances: Array<{a: string; wb: string}> = a?.B ?? []
+    const usdtBalance = balances.find((b: any) => b.a === 'USDT')
+    const futuresWallet = parseFloat(usdtBalance?.wb ?? '0')
+
+    const posArr: Array<{up: string}> = a?.P ?? []
+    let unrealizedPnl = 0
+    for (const p of posArr) {
+      unrealizedPnl += parseFloat(p.up ?? '0')
+    }
+
+    const currentEquity = futuresWallet + unrealizedPnl
+    const lastEquity = ks.lastEquity
+    ks.lastEquity = currentEquity
+
+    // 只在有前值时才发布 deltaEquity
+    const deltaEquity = lastEquity !== null ? currentEquity - lastEquity : 0
+
+    // 检测强平：持仓归零 + 权益大幅下降
+    const isLiquidation =
+      lastEquity !== null &&
+      currentEquity < lastEquity * 0.5 &&
+      posArr.length === 0
+
+    publishEquityUpdate({
+      type: 'EQUITY_UPDATE',
+      apiKeyId,
+      eventTime: Number(msg.E || Date.now()),
+      futuresWallet: String(futuresWallet),
+      unrealizedPnl: String(unrealizedPnl),
+      deltaEquity: String(deltaEquity),
+      isLiquidation
+    }).catch(err => {
+      console.error(
+        '[wsIngestor] publishEquityUpdate 失败:',
+        (err as Error).message
+      )
+    })
   } else if (msg.e === 'listenKeyExpired') {
     cleanup(apiKeyId)
     ensureConn(apiKeyId).catch(err => {
@@ -214,7 +259,8 @@ async function ensureConn(apiKeyId: number): Promise<KeyState> {
     ),
     clients: new Set(),
     cleanupTimer: null,
-    heartbeatTimer: null
+    heartbeatTimer: null,
+    lastEquity: null
   }
   // heartbeatTimer 在 ks 赋值后设置，回调内才能引用 ks
   ks.heartbeatTimer = setInterval(() => {

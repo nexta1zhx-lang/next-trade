@@ -117,6 +117,12 @@ router.post('/', zValidator('json', createSchema), async c => {
           console.error(`[keys] 历史成交同步失败 key=${key.id}:`, err.message)
       )
     })
+    // 首次权益基线采集
+    import('../../services/equityCollector.js').then(({collectAndPublish}) => {
+      collectAndPublish(key.id).catch((err: Error) =>
+        console.error(`[keys] 首次权益基线采集失败 key=${key.id}:`, err.message)
+      )
+    })
   }
 
   return c.json({success: true, data: result}, 201)

@@ -11,9 +11,13 @@ import {
   CONSUMER_GROUP,
   CONSUMER_NAME,
   STREAM_MAXLEN,
+  EQUITY_STREAM_KEY,
+  EQUITY_STREAM_MAXLEN,
   type StreamEvent,
   type TradeEvent,
-  type PositionUpdateEvent
+  type PositionUpdateEvent,
+  type EquityUpdateEvent,
+  type EquityReconcileEvent
 } from './eventTypes.js'
 
 let redis: Redis | null = null
@@ -62,6 +66,40 @@ export async function publishPositionUpdate(
     'MAXLEN',
     '~',
     STREAM_MAXLEN,
+    '*',
+    'json',
+    JSON.stringify(event)
+  )
+  return id ?? ''
+}
+
+// ─── 权益事件生产者 ───
+
+export async function publishEquityUpdate(
+  event: EquityUpdateEvent
+): Promise<string> {
+  const r = getRedis()
+  const id = await r.xadd(
+    EQUITY_STREAM_KEY,
+    'MAXLEN',
+    '~',
+    EQUITY_STREAM_MAXLEN,
+    '*',
+    'json',
+    JSON.stringify(event)
+  )
+  return id ?? ''
+}
+
+export async function publishEquityReconcile(
+  event: EquityReconcileEvent
+): Promise<string> {
+  const r = getRedis()
+  const id = await r.xadd(
+    EQUITY_STREAM_KEY,
+    'MAXLEN',
+    '~',
+    EQUITY_STREAM_MAXLEN,
     '*',
     'json',
     JSON.stringify(event)

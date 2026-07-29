@@ -8,33 +8,19 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
+  CartesianGrid
 } from 'recharts'
 import {
   Wallet,
   TrendingUp,
-  Landmark,
-  PiggyBank,
   Activity,
-  Gauge,
   AlertCircle,
-  Percent,
-  History,
   Eye,
   EyeOff,
   CalendarRange
 } from 'lucide-react'
 import {authHeaders, API_ORIGIN, getToken} from '@/lib/api'
-import type {
-  AssetCurrent,
-  AssetTodayExtremes,
-  AssetDailyOHLC,
-  AssetPeriodAnalysis
-} from '@nexttrade/shared'
+import {api} from '@/lib/api'
 
 // ─── 法币配置 ───
 const FX_RATES: Record<string, number> = {
@@ -104,28 +90,6 @@ function fmtDate(isoStr: string): string {
   return d.toLocaleDateString('zh-CN', {month: 'short', day: 'numeric'})
 }
 
-const MODULE_COLORS: Record<string, string> = {
-  fundingVal: '#10b981',
-  spotVal: '#3b82f6',
-  futuresUVal: '#8b5cf6',
-  futuresCoinVal: '#f59e0b',
-  earnVal: '#ef4444'
-}
-const MODULE_LABELS: Record<string, string> = {
-  fundingVal: '资金',
-  spotVal: '现货',
-  futuresUVal: 'U合约',
-  futuresCoinVal: '币合约',
-  earnVal: '理财'
-}
-const MODULE_ICONS: Record<string, any> = {
-  fundingVal: Landmark,
-  spotVal: Wallet,
-  futuresUVal: Gauge,
-  futuresCoinVal: Gauge,
-  earnVal: PiggyBank
-}
-
 type TimeRange = '1d' | '1w' | '1m' | '3m' | '6m' | '1y' | 'all'
 const RANGE_DAYS: Record<TimeRange, number> = {
   '1d': 1,
@@ -146,30 +110,122 @@ const RANGE_LABELS: Record<TimeRange, string> = {
   all: '全部'
 }
 
+/** 小指标卡片 */
+function EquityMiniCard({
+  label,
+  value,
+  privacyMode,
+  currency,
+  isPnl,
+  isPct,
+  isNegative,
+  plain
+}: {
+  label: string
+  value: number | null | undefined
+  privacyMode: boolean
+  currency: string
+  isPnl?: boolean
+  isPct?: boolean
+  isNegative?: boolean
+  plain?: boolean
+}) {
+  const numVal = value ?? 0
+  const color =
+    isNegative && numVal < 0
+      ? ''
+      : isNegative
+        ? 'text-red-400'
+        : isPnl
+          ? numVal >= 0
+            ? 'text-emerald-500'
+            : 'text-red-500'
+          : isPct
+            ? numVal >= 0
+              ? 'text-emerald-500'
+              : 'text-red-500'
+            : ''
+  const display = privacyMode
+    ? '****'
+    : plain
+      ? String(numVal)
+      : isPct
+        ? `${numVal >= 0 ? '+' : ''}${numVal.toFixed(2)}%`
+        : fmtFull(numVal, currency)
+  return (
+    <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
+      <p className="text-[10px] text-muted-foreground mb-0.5">{label}</p>
+      <p className={`text-sm font-bold tabular-nums ${color}`}>{display}</p>
+    </div>
+  )
+}
+
+/** 区间分析行组件 */
+function AnalysisRow({
+  label,
+  value,
+  privacyMode,
+  currency,
+  isPnl,
+  isPct,
+  isNegative,
+  suffix
+}: {
+  label: string
+  value: number | null | undefined
+  privacyMode: boolean
+  currency: string
+  isPnl?: boolean
+  isPct?: boolean
+  isNegative?: boolean
+  suffix?: string
+}) {
+  const numVal = value ?? 0
+  const color = isPnl
+    ? numVal >= 0
+      ? 'text-emerald-500'
+      : 'text-red-500'
+    : isPct
+      ? numVal >= 0
+        ? 'text-emerald-500'
+        : 'text-red-500'
+      : ''
+  const display = privacyMode
+    ? '****'
+    : isPct
+      ? `${numVal >= 0 ? '+' : ''}${numVal.toFixed(2)}%${suffix ?? ''}`
+      : fmtFull(numVal, currency) + (suffix ?? '')
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-gray-800/50 last:border-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`text-xs font-medium tabular-nums ${color}`}>
+        {display}
+      </span>
+    </div>
+  )
+}
+
 export default function AssetPage() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [initDone, setInitDone] = useState(false)
   const [currentAssets, setCurrentAssets] = useState<Record<
     number,
-    AssetCurrent
+    any
   > | null>(null)
   const [todayData, setTodayData] = useState<any[]>([])
-  const [ohlcData, setOhlcData] = useState<AssetDailyOHLC[]>([])
+  const [ohlcData, setOhlcData] = useState<any[]>([])
   const [keyIds, setKeyIds] = useState<number[]>([])
   const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currency, setCurrency] = useState('USD')
-  const [timeRange, setTimeRange] = useState<TimeRange>('3m')
+  const [timeRange, setTimeRange] = useState<TimeRange>('1d')
   const [chartMode, setChartMode] = useState<'value' | 'roi'>('value')
   const [privacyMode, setPrivacyMode] = useState(false)
-  const [selectedModule, setSelectedModule] = useState<string | null>(null)
   const [customRange, setCustomRange] = useState<{
     start: string
     end: string
   } | null>(null)
-  const [periodAnalysis, setPeriodAnalysis] =
-    useState<AssetPeriodAnalysis | null>(null)
 
   useEffect(() => {
     setLoggedIn(!!getToken())
@@ -201,19 +257,14 @@ export default function AssetPage() {
     }
     setError(null)
     try {
-      // 1. current — 获取 Key 列表（始终请求）
-      const curRes = await fetch(`${API_ORIGIN}/api/asset/current`, {
-        headers: authHeaders()
-      })
-      const curJson = await curRes.json()
+      // 1. V2 权益摘要 — 获取所有 Key 的当前权益 + ROI 等
+      // 注意: fetchApi 已解包 json.data，返回的是数据本身
+      const sumData: Record<string, any> = (await api.getEquitySummary()) ?? {}
 
-      let keys: number[] = []
-      if (curJson.success) {
-        keys = Object.keys(curJson.data).map(Number).sort()
-        setCurrentAssets(curJson.data)
-        setKeyIds(keys)
-        if (keys.length > 0 && selectedKeyId === null) setSelectedKeyId(keys[0])
-      }
+      let keys: number[] = Object.keys(sumData).map(Number).sort()
+      setCurrentAssets(sumData)
+      setKeyIds(keys)
+      if (keys.length > 0 && selectedKeyId === null) setSelectedKeyId(keys[0])
 
       // 2. 确认当前选中的 Key
       const activeKeyId = selectedKeyId ?? keys[0] ?? keyIdsRef.current[0]
@@ -223,64 +274,30 @@ export default function AssetPage() {
       }
 
       // 3. 按时间范围按需请求
-      //    - "天"视图 → today（高频分时数据）
-      //    - 其他视图 → history（日 K 线）
-      //    - 始终 → period-analysis（分析区）
       const is1d = timeRange === '1d' && !customRange
-      let dataRes: Response
 
       if (is1d) {
-        dataRes = await fetch(
-          `${API_ORIGIN}/api/asset/today?apiKeyId=${activeKeyId}`,
-          {headers: authHeaders()}
-        )
-      } else {
-        dataRes = await fetch(
-          `${API_ORIGIN}/api/asset/history?apiKeyId=${activeKeyId}&days=${days}`,
-          {headers: authHeaders()}
-        )
-      }
-
-      const pRes = await fetch(
-        `${API_ORIGIN}/api/asset/period-analysis?apiKeyId=${activeKeyId}&start=${rangeDates.start}&end=${rangeDates.end}`,
-        {headers: authHeaders()}
-      )
-
-      if (is1d) {
-        const todayJson = await dataRes.json()
-        if (todayJson.success) setTodayData(todayJson.data)
+        const todayDataArr: Array<{time: string; value: number}> =
+          (await api.getEquityToday(activeKeyId)) ?? []
+        setTodayData(todayDataArr)
         setOhlcData([])
       } else {
-        const histJson = await dataRes.json()
-        if (histJson.success) {
-          const raw = Array.isArray(histJson.data)
-            ? histJson.data
-            : (histJson.data?.ohlc ?? [])
-          setOhlcData(
-            (Array.isArray(raw) ? raw : []).sort((a: any, b: any) =>
-              a.date.localeCompare(b.date)
-            )
-          )
-        }
+        // "全部"时不传 days，后端返回全部数据
+        const curveParams: any = {keyId: activeKeyId}
+        if (timeRange !== 'all') curveParams.days = days
+        const curveData: any[] = (await api.getEquityCurve(curveParams)) ?? []
+        const sorted = (Array.isArray(curveData) ? curveData : []).sort(
+          (a: any, b: any) => a.hour?.localeCompare(b.hour || b.date)
+        )
+        setOhlcData(sorted)
         setTodayData([])
       }
-
-      const pJson = await pRes.json()
-      if (pJson.success) setPeriodAnalysis(pJson.data)
     } catch (e) {
       setError((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [
-    loggedIn,
-    days,
-    selectedKeyId,
-    rangeDates.start,
-    rangeDates.end,
-    timeRange,
-    customRange
-  ])
+  }, [loggedIn, days, selectedKeyId, timeRange, customRange])
 
   useEffect(() => {
     fetchAll()
@@ -291,38 +308,43 @@ export default function AssetPage() {
   const currentKeyAsset = selectedKeyId ? currentAssets?.[selectedKeyId] : null
   const selectedToday = useMemo(() => {
     if (!todayData) return null
-    // 按 Key 请求时，todayData 是 { extremes, intraday }
-    if (
-      selectedKeyId &&
-      typeof todayData === 'object' &&
-      !Array.isArray(todayData)
-    ) {
-      return todayData as {
-        extremes: AssetTodayExtremes | null
-        intraday: Array<{time: string; value: number}>
-      }
-    }
-    // 旧格式兼容（全量请求时是数组）
-    if (Array.isArray(todayData) && todayData.length > 0) {
-      if (selectedKeyId)
-        return todayData.find((d: any) => d.keyId === selectedKeyId) ?? null
-      return todayData[0]
+    // v2 equity/today 返回数组
+    if (Array.isArray(todayData)) {
+      return {extremes: null, intraday: todayData}
     }
     return null
   }, [todayData, selectedKeyId])
-  const extremes: AssetTodayExtremes | null = selectedToday?.extremes ?? null
+  const extremes: any = selectedToday?.extremes ?? null
   const intraday = selectedToday?.intraday ?? []
 
-  const pieData = useMemo(() => {
-    if (!currentKeyAsset) return []
-    return Object.entries(MODULE_COLORS)
-      .map(([key, color]) => ({
-        name: MODULE_LABELS[key],
-        value: (currentKeyAsset as any)[key] ?? 0,
-        color
-      }))
-      .filter(i => i.value > 0)
-  }, [currentKeyAsset])
+  // ─── 全 Key 汇总 ───
+  const aggregatedSummary = useMemo(() => {
+    if (!currentAssets || keyIds.length === 0)
+      return {
+        totalEquity: 0,
+        totalPnl: 0,
+        avgRoi: 0,
+        maxDd: 0,
+        baseEquity: 0,
+        count: 0
+      }
+    let totalEquity = 0
+    let totalPnl = 0
+    let baseEquity = 0
+    let maxDd = 0
+    let count = 0
+    for (const kid of keyIds) {
+      const a = currentAssets[kid]
+      if (!a?.baseline) continue
+      totalEquity += a.currentEquity ?? 0
+      totalPnl += a.cumulativePnl ?? 0
+      baseEquity += a.baseline.baseEquity ?? 0
+      maxDd = Math.max(maxDd, a.maxDrawdown ?? 0)
+      count++
+    }
+    const avgRoi = baseEquity > 0 ? (totalPnl / baseEquity) * 100 : 0
+    return {totalEquity, totalPnl, avgRoi, maxDd, baseEquity, count}
+  }, [currentAssets, keyIds])
 
   const amplitude = extremes?.lowVal
     ? ((extremes.highVal - extremes.lowVal) / extremes.lowVal) * 100
@@ -332,38 +354,11 @@ export default function AssetPage() {
   const yesterdayChange = useMemo(() => {
     if (ohlcData.length < 2) return null
     const yesterday = ohlcData[ohlcData.length - 2]
-    const current = currentKeyAsset?.totalNetVal ?? 0
+    const current = aggregatedSummary.totalEquity
     const diff = current - yesterday.closeVal
     const pct = yesterday.closeVal > 0 ? (diff / yesterday.closeVal) * 100 : 0
     return {diff, pct}
   }, [ohlcData, currentKeyAsset])
-
-  // ─── 区间分析指标（由后端计算） ───
-  const {
-    periodPnL,
-    periodROI,
-    rawChange,
-    annualizedROI,
-    periodMDD,
-    mddStartDate,
-    mddEndDate,
-    days: periodDays,
-    netDeposit
-  } = useMemo(() => {
-    if (!periodAnalysis)
-      return {
-        periodPnL: null,
-        periodROI: null,
-        rawChange: null,
-        annualizedROI: null,
-        periodMDD: null,
-        mddStartDate: null,
-        mddEndDate: null,
-        days: 0,
-        netDeposit: 0
-      }
-    return periodAnalysis
-  }, [periodAnalysis])
 
   // ─── 走势图数据（完整时间网格，无数据补0） ───
   const chartData = useMemo(() => {
@@ -485,44 +480,17 @@ export default function AssetPage() {
 
       {!loading && loggedIn && (
         <>
-          {keyIds.length > 0 && (
-            <div className="flex gap-2 mb-4 overflow-x-auto -mx-2 px-2 scrollbar-none pb-1">
-              {keyIds.map(kid => {
-                const label = currentAssets?.[kid]?.label ?? `Key #${kid}`
-                return (
-                  <button
-                    key={kid}
-                    onClick={() => setSelectedKeyId(kid)}
-                    className={`px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0 whitespace-nowrap ${selectedKeyId === kid ? 'bg-primary/15 text-primary font-medium border border-primary/30' : 'bg-[#18181b] border border-gray-800 text-gray-400 hover:text-gray-200'}`}
-                  >
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {currentKeyAsset && currentKeyAsset.snapshotAt === null && (
-            <div className="flex flex-col items-center justify-center py-16 text-sm text-gray-500 border border-dashed border-gray-800 rounded-xl mb-6">
-              <Wallet className="w-10 h-10 mb-3 opacity-30" />
-              <p>{currentKeyAsset.label || `Key #${selectedKeyId}`} 已绑定</p>
-              <p className="text-xs text-gray-600 mt-1">
-                等待首次资产采集...（每 5 分钟自动执行）
-              </p>
-            </div>
-          )}
-
-          {currentKeyAsset && currentKeyAsset.snapshotAt !== null && (
+          {aggregatedSummary.count > 0 && (
             <>
-              {/* ═══ 第一行：总资产(含振幅+较昨日) + 五大分资产 ═══ */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+              {/* ═══ 顶部：全 Key 汇总指标（放在 Key 选择上方） ═══ */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2 mb-4">
                 <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
                   <p className="text-[10px] text-muted-foreground mb-0.5">
-                    总资产 ({currency})
+                    总权益 ({currency})
                   </p>
                   <p className="text-lg font-bold tabular-nums">
                     {fmtMask(
-                      currentKeyAsset.totalNetVal,
+                      aggregatedSummary.totalEquity,
                       privacyMode,
                       currency
                     )}
@@ -548,128 +516,101 @@ export default function AssetPage() {
                     )}
                   </div>
                   <p className="text-[9px] text-gray-600 mt-0.5">
-                    {fmtTime(currentKeyAsset.snapshotAt)}
-                    {currentKeyAsset.wsUpdateAt && (
-                      <span className="ml-1 text-emerald-500">●</span>
-                    )}
+                    {aggregatedSummary.count} 个 Key
                   </p>
                 </div>
-                {Object.keys(MODULE_LABELS).map(key => {
-                  const Icon = MODULE_ICONS[key]
-                  const val = (currentKeyAsset as any)[key] ?? 0
-                  const total = currentKeyAsset.totalNetVal
-                  const pct = total > 0 ? (val / total) * 100 : 0
-                  const isSelected = selectedModule === key
-                  return (
-                    <div
-                      key={key}
-                      onClick={() => setSelectedModule(isSelected ? null : key)}
-                      className={`bg-[#18181b] rounded-xl border p-3 cursor-pointer transition-all ${
-                        isSelected
-                          ? 'border-primary/40 ring-1 ring-primary/20'
-                          : 'border-gray-800 hover:border-gray-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1 mb-0.5">
-                        <Icon
-                          className="w-3 h-3"
-                          style={{color: MODULE_COLORS[key]}}
-                        />
-                        <p className="text-[10px] text-muted-foreground">
-                          {MODULE_LABELS[key]}
-                        </p>
-                      </div>
-                      <p className="text-sm font-bold tabular-nums">
-                        {fmtMask(val, privacyMode, currency)}
-                      </p>
-                      {/* 占比条 */}
-                      <div className="mt-1.5 h-1 bg-gray-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{
-                            width: `${Math.min(pct, 100)}%`,
-                            backgroundColor: MODULE_COLORS[key]
-                          }}
-                        />
-                      </div>
-                      <p className="text-[8px] text-gray-600 mt-0.5">
-                        {pct.toFixed(1)}%
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
 
-              {/* ═══ 第二行：区间分析指标 ═══ */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-                <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
-                  <p className="text-[10px] text-muted-foreground mb-0.5">
-                    收益
-                    <span className="text-gray-600 ml-1">
-                      ({periodDays || '--'}天)
-                    </span>
-                  </p>
-                  <p
-                    className={`text-sm font-bold tabular-nums ${periodPnL !== null && periodPnL >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
-                  >
-                    {fmtMask(periodPnL, privacyMode, currency)}
-                  </p>
-                  <p className="text-[8px] text-gray-600 mt-0.5">
-                    净充值
-                    {netDeposit !== 0 && (
-                      <> {fmtMask(netDeposit, privacyMode, currency)}</>
-                    )}
-                  </p>
-                </div>
-                <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <Percent className="w-3 h-3 text-gray-500" />
-                    <p className="text-[10px] text-muted-foreground">
-                      区间收益率 (ROI)
-                    </p>
-                  </div>
-                  <p
-                    className={`text-sm font-bold tabular-nums ${periodROI !== null && periodROI >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
-                  >
-                    {periodROI !== null
-                      ? `${periodROI >= 0 ? '+' : ''}${periodROI.toFixed(2)}%`
-                      : '--'}
-                  </p>
-                  {annualizedROI !== null && (
-                    <p className="text-[8px] text-gray-500 mt-0.5">
-                      年化 {annualizedROI >= 0 ? '+' : ''}
-                      {annualizedROI.toFixed(2)}%
-                    </p>
-                  )}
-                </div>
-                <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3">
-                  <div className="flex items-center gap-1 mb-0.5">
-                    <History className="w-3 h-3 text-gray-500" />
-                    <p className="text-[10px] text-muted-foreground">
-                      区间最大回撤 (MDD)
-                    </p>
-                  </div>
-                  <p className="text-sm font-bold tabular-nums text-red-400">
-                    {periodMDD !== null ? `${periodMDD.toFixed(2)}%` : '--'}
-                  </p>
-                  {mddStartDate && mddEndDate && (
-                    <p className="text-[8px] text-gray-600 mt-0.5">
-                      {mddStartDate} ~ {mddEndDate}
-                    </p>
-                  )}
-                </div>
-                <div className="bg-[#18181b] rounded-xl border border-gray-800 p-3 flex items-center justify-center">
-                  <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
-                    所选区间
-                    <br />
-                    <span className="text-xs font-medium text-gray-300">
-                      {rangeDates.start} ~ {rangeDates.end}
-                    </span>
-                  </p>
-                </div>
+                <EquityMiniCard
+                  label="累计盈亏"
+                  value={aggregatedSummary.totalPnl}
+                  privacyMode={privacyMode}
+                  currency={currency}
+                  isPnl
+                />
+                <EquityMiniCard
+                  label="综合收益率"
+                  value={aggregatedSummary.avgRoi}
+                  privacyMode={privacyMode}
+                  currency={currency}
+                  isPct
+                />
+                <EquityMiniCard
+                  label="最大回撤(全Key)"
+                  value={aggregatedSummary.maxDd}
+                  privacyMode={privacyMode}
+                  currency={currency}
+                  isPct
+                  isNegative
+                />
+                <EquityMiniCard
+                  label="基线权益"
+                  value={aggregatedSummary.baseEquity}
+                  privacyMode={privacyMode}
+                  currency={currency}
+                />
+                <EquityMiniCard
+                  label="实盘"
+                  value={aggregatedSummary.count}
+                  privacyMode={false}
+                  currency={currency}
+                  plain
+                />
               </div>
+            </>
+          )}
 
-              {/* ═══ 第三行：走势图 + 饼图 ═══ */}
+          {/* Key 选择器（放在汇总卡片下方） */}
+          {keyIds.length > 0 && (
+            <div className="flex gap-2 mb-4 overflow-x-auto -mx-2 px-2 scrollbar-none pb-1">
+              {keyIds.map(kid => {
+                const label = currentAssets?.[kid]?.label || '实盘'
+                return (
+                  <button
+                    key={kid}
+                    onClick={() => setSelectedKeyId(kid)}
+                    className={`px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0 whitespace-nowrap ${selectedKeyId === kid ? 'bg-primary/15 text-primary font-medium border border-primary/30' : 'bg-[#18181b] border border-gray-800 text-gray-400 hover:text-gray-200'}`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {aggregatedSummary.count === 0 && keyIds.length > 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-sm text-gray-500 border border-dashed border-gray-800 rounded-xl mb-6">
+              <Wallet className="w-10 h-10 mb-3 opacity-30" />
+              <p>已绑定 {keyIds.length} 个 Key</p>
+              <p className="text-xs text-gray-600 mt-1">
+                等待首次基线采集...（每 30 分钟自动采集）
+              </p>
+            </div>
+          )}
+
+          {aggregatedSummary.count > 0 && (
+            <>
+              {/* 极值信息 */}
+              {extremes && (
+                <div className="text-[10px] text-muted-foreground mb-3 px-1">
+                  今日 O: {fmtMask(extremes.openVal, privacyMode, currency)} H:{' '}
+                  <span className="text-emerald-500">
+                    {fmtMask(extremes.highVal, privacyMode, currency)}
+                  </span>{' '}
+                  L:{' '}
+                  <span className="text-red-500">
+                    {fmtMask(extremes.lowVal, privacyMode, currency)}
+                  </span>{' '}
+                  C:{' '}
+                  {fmtMask(
+                    currentKeyAsset.currentEquity,
+                    privacyMode,
+                    currency
+                  )}{' '}
+                  振幅 {amplitude.toFixed(2)}%
+                </div>
+              )}
+
+              {/* ═══ 走势图 + 分析 ═══ */}
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 lg:gap-4 mb-6">
                 <div className="lg:col-span-3 bg-[#18181b] rounded-xl border border-gray-800 p-3 sm:p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -909,42 +850,74 @@ export default function AssetPage() {
                   )}
                 </div>
 
-                {/* 饼图 */}
+                {/* 资金分析 — 当前 Key 一行行展示 */}
                 <div className="bg-[#18181b] rounded-xl border border-gray-800 p-4">
-                  <h2 className="text-sm font-medium mb-3">资产占比</h2>
-                  {pieData.length > 0 ? (
-                    <div className="h-[200px] sm:h-[280px] lg:h-[320px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={45}
-                            outerRadius={75}
-                            dataKey="value"
-                            stroke="#18181b"
-                            strokeWidth={2}
-                          >
-                            {pieData.map((entry, idx) => (
-                              <Cell key={idx} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: '#18181b',
-                              border: '1px solid #27272a',
-                              borderRadius: '8px',
-                              fontSize: '12px'
-                            }}
-                            formatter={(value: number) => [
-                              fmtFull(value, currency),
-                              ''
-                            ]}
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-medium">资金分析</h2>
+                    <span className="text-[10px] text-muted-foreground">
+                      {currentKeyAsset?.label || '实盘'}
+                    </span>
+                  </div>
+                  {currentKeyAsset?.baseline ? (
+                    <div className="space-y-2">
+                      <AnalysisRow
+                        label="基线权益"
+                        value={currentKeyAsset.baseline.baseEquity}
+                        privacyMode={privacyMode}
+                        currency={currency}
+                      />
+                      <AnalysisRow
+                        label="当前权益"
+                        value={currentKeyAsset.currentEquity}
+                        privacyMode={privacyMode}
+                        currency={currency}
+                      />
+                      <AnalysisRow
+                        label="累计盈亏"
+                        value={currentKeyAsset.cumulativePnl}
+                        privacyMode={privacyMode}
+                        currency={currency}
+                        isPnl
+                      />
+                      <AnalysisRow
+                        label="简单收益率"
+                        value={currentKeyAsset.simpleRoi}
+                        privacyMode={privacyMode}
+                        currency={currency}
+                        isPct
+                      />
+                      <AnalysisRow
+                        label="时间加权 ROI"
+                        value={currentKeyAsset.twRoi}
+                        privacyMode={privacyMode}
+                        currency={currency}
+                        isPct
+                      />
+                      <AnalysisRow
+                        label="最大回撤"
+                        value={currentKeyAsset.maxDrawdown}
+                        privacyMode={privacyMode}
+                        currency={currency}
+                        isPct
+                        isNegative
+                      />
+                      {currentKeyAsset.dailyExtremes && (
+                        <>
+                          <div className="border-t border-gray-800 my-2" />
+                          <AnalysisRow
+                            label="今日最高"
+                            value={currentKeyAsset.dailyExtremes.highVal}
+                            privacyMode={privacyMode}
+                            currency={currency}
                           />
-                          <Legend wrapperStyle={{fontSize: '11px'}} />
-                        </PieChart>
-                      </ResponsiveContainer>
+                          <AnalysisRow
+                            label="今日最低"
+                            value={currentKeyAsset.dailyExtremes.lowVal}
+                            privacyMode={privacyMode}
+                            currency={currency}
+                          />
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-16 text-sm text-gray-600">
