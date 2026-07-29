@@ -42,7 +42,7 @@ ENV STATIC_EXPORT=true
 RUN pnpm --filter @nexttrade/web run build
 
 # ─── 生产阶段（静态文件服务，无需 Node.js） ───
-FROM alpine:3.19
+FROM python:3.13-alpine
 
 # 复制静态导出产物
 COPY --from=builder /app/apps/web/out /var/www/html
@@ -53,5 +53,5 @@ RUN test -f /var/www/html/404.html || echo '{"error":"not found"}' > /var/www/ht
 
 EXPOSE 3000
 
-# 使用 busybox httpd 轻量级静态文件服务器
-CMD ["busybox", "httpd", "-f", "-v", "-p", "3000", "-h", "/var/www/html"]
+# 使用 Python 内置 HTTP 服务器，仅 ~10MB
+CMD ["python3", "-m", "http.server", "3000", "-d", "/var/www/html", "--bind", "0.0.0.0"]
