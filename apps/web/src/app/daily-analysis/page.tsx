@@ -725,10 +725,25 @@ export default function DailyAnalysisPage() {
                             <div
                               key={fav.symbol}
                               onClick={() => {
-                                const item = data?.rankAmplitude.find(
+                                const found = data?.rankAmplitude.find(
                                   i => i.symbol === fav.symbol
                                 )
-                                if (item) selectSymbol(item)
+                                selectSymbol(
+                                  found ?? {
+                                    symbol: fav.symbol,
+                                    base: fav.base,
+                                    open: 0,
+                                    high: 0,
+                                    low: 0,
+                                    close: 0,
+                                    amplitude: 0,
+                                    change: ticker ? Number(ticker.change) : 0,
+                                    quoteVolume: ticker
+                                      ? Number(ticker.quoteVol)
+                                      : 0,
+                                    isDoji: false
+                                  }
+                                )
                               }}
                               className={`flex items-center gap-1.5 px-2 py-1.5 text-xs border-b border-gray-800/30 cursor-pointer transition-colors ${
                                 sel
